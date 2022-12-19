@@ -1,5 +1,5 @@
 
-# tempalte
+# mpgen
 
 ## Table of content
 

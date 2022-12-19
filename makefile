@@ -1,5 +1,5 @@
-NAME := template
-TARGET_EXEC := template
+NAME := mpgen
+TARGET_EXEC := mpgen
 TEST_EXEC := test
 CC=gcc
 
@@ -13,8 +13,8 @@ TYPE := bin
 # which porgram from the project 
 # to build 
 # values:
-# TEMPLATE = the main program 
-PRG := TEMPLATE  
+# MPGEN = the main program 
+PRG := MPGEN  
 
 BUILD_DIR := ./build
 BUILD_DIR_TEST := $(BUILD_DIR)/build_test
