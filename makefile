@@ -1,5 +1,5 @@
-NAME := mpgen
-TARGET_EXEC := mpgen
+NAME := mploc
+TARGET_EXEC := mploc
 TEST_EXEC := test
 CC=gcc
 
@@ -13,8 +13,8 @@ TYPE := bin
 # which porgram from the project 
 # to build 
 # values:
-# MPGEN = the main program 
-PRG := MPGEN  
+# MPLOC = the main program 
+PRG := MPLOC  
 
 BUILD_DIR := ./build
 BUILD_DIR_TEST := $(BUILD_DIR)/build_test

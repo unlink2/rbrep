@@ -3,7 +3,7 @@
  */
 
 #ifndef TEST
-#ifdef MPGEN
+#ifdef MPLOC
 
 /// only use main if binary
 #if TYPE == bin
@@ -14,7 +14,7 @@
 #include <argp.h>
 #include "debug.h"
 
-const char *argp_program_version = "mpgen 0.1";
+const char *argp_program_version = "mploc 0.1";
 const char *argp_program_bug_address = "<lukas@krickl.dev>";
 static char doc[] = "";
 static char args_doc[] = "Quick tool for monkey patching a binary";
