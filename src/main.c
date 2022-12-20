@@ -26,19 +26,22 @@ static struct argp_option options[] = {
 
 static error_t parse_opt(int key, char *arg,
                          struct argp_state *state) { // NOLINT
-  // Config *c = state->input;
+  Config *c = state->input;
   switch (key) {
     break;
   case ARGP_KEY_ARG:
-    if (state->arg_num > 0) {
-      // Too many arguments
-      argp_usage(state); // NOLINT
-    } else {
-      // TODO handle args
-    }
+    // if (state->arg_num > 0) {
+    // Too many arguments
+    //   argp_usage(state); // NOLINT
+    // } else {
+    // TODO handle args
+    // first arg is expression
+    // all others are inputs
+    config_exec(c, arg);
+    // }
     break;
   case ARGP_KEY_END:
-    if (state->arg_num < 0) {
+    if (state->arg_num < 1) {
       /* Not enough arguments. */
       argp_usage(state); // NOLINT
     }
@@ -54,6 +57,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 int main(int argc, char **argv) {
   cfg = config_init();
   argp_parse(&argp, argc, argv, 0, 0, &cfg); // NOLINT
+  config_finish(&cfg);
   return cfg.err;
 }
 
@@ -69,7 +73,7 @@ int main(int argc, char **argv) {
 #include "test.h"
 
 int main(int argc, char **argv) {
-  const struct CMUnitTest tests[] = {cmocka_unit_test(test_array)};
+  const struct CMUnitTest tests[] = {NULL /* cmocka_unit_test(test_array) */};
   return cmocka_run_group_tests(tests, NULL, NULL);
 }
 
