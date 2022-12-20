@@ -31,3 +31,11 @@ Please make sure that all existing tests pass before submitting a pull request.
 - Structs and Typedefs: MyStruct
 - Functions: my_function()
 - Internal functions: my_internal_function_()
+
+## Syntax Notes
+
+- Input is hex strings
+- .. can be used as a wildcard
+- any byte token can be multiplied e.g. *2 
+- spaces are optional and end a token, but are required after a multiplication
+- full example: 'ffAA12..(aa, bb)\*2 cc\*3'
