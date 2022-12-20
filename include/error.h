@@ -6,7 +6,9 @@
 typedef enum Error {
   OK = 0,
   ERR_FILE_NOT_FOUND,
-  ERR_NOT_IMPLEMENTED
+  ERR_NOT_IMPLEMENTED,
+  ERR_ARRAY_OUT_OF_BOUNDS,
+  ERR_ARRAY_RESIZE_NOT_ALLOWED
 } Error;
 
 typedef enum Warning {

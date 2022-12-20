@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 #include "test.h"
 
 int main(int argc, char **argv) {
-  const struct CMUnitTest tests[] = {NULL};
+  const struct CMUnitTest tests[] = {cmocka_unit_test(test_array)};
   return cmocka_run_group_tests(tests, NULL, NULL);
 }
 

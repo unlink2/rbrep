@@ -7,5 +7,6 @@
 #include "macros.h"
 
 // Define tests here
+void test_array(void **state);
 
 #endif 
