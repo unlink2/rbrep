@@ -3,7 +3,7 @@
  */
 
 #ifndef TEST
-#ifdef MPLOC
+#ifdef MREP
 
 /// only use main if binary
 #if TYPE == bin
@@ -14,7 +14,7 @@
 #include <argp.h>
 #include "debug.h"
 
-const char *argp_program_version = "mploc 0.1";
+const char *argp_program_version = "mrep 0.1";
 const char *argp_program_bug_address = "<lukas@krickl.dev>";
 static char doc[] = "";
 static char args_doc[] = "Tool for quickly locating binary patterns in files";

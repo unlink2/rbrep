@@ -1,5 +1,5 @@
-NAME := mploc
-TARGET_EXEC := mploc
+NAME := mrep
+TARGET_EXEC := mrep
 TEST_EXEC := test
 CC=gcc
 
@@ -13,8 +13,8 @@ TYPE := bin
 # which porgram from the project 
 # to build 
 # values:
-# MPLOC = the main program 
-PRG := MPLOC  
+# MREP = the main program 
+PRG := MREP  
 
 BUILD_DIR := ./build
 BUILD_DIR_TEST := $(BUILD_DIR)/build_test
