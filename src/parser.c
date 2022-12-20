@@ -1,20 +1,20 @@
 #include "parser.h"
 #include <string.h>
 
-Expr expr_init() {
-  Expr e;
-  memset(&e, 0, sizeof(e));
+Parser parser_init(const char *src) {
+  Parser p;
+  memset(&p, 0, sizeof(p));
 
-  return e;
+  p.src = src;
+  p.len = strlen(src);
+
+  return p;
 }
 
-Expr expr_from(const char *src) {
-  Expr e = expr_init();
-  return e;
+char parser_next(Parser *p) {
+  if (p->err && p->pos >= p->len) {
+    return '\0';
+  }
+
+  return p->src[p->pos];
 }
-
-bool expr_is_err(const Expr *expr) { return FALSE; }
-
-void expr_free(Expr *expr) {}
-
-Error expr_apply(const char *src, FILE *f) { return OK; }

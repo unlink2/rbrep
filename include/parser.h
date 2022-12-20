@@ -3,34 +3,17 @@
 
 #include "error.h"
 #include "types.h"
-#include <stdio.h>
 
-typedef enum ExprKind {
-  EXPR_BYTE,
-  EXPR_ANY,
-  EXPR_GROUP,
-  EXPR_STRING,
-} ExprKind;
+typedef struct Parser {
+  const char *src;
+  usize len;
+  usize pos;
 
-typedef struct ByteExpr {
-  u8 val;
-} ByteExpr; 
-
-typedef struct Expr {
-  union {
-    ByteExpr byte;
-  };
-     
-  ExprKind kind;
-  struct Expr *next;
-  
   Error err;
-} Expr;
+} Parser;
 
-Expr expr_from(const char *src);
+Parser parser_init(const char *src);
 
-void expr_free(Expr *expr);
-
-Error expr_apply(const char *src, FILE *f);
+char parser_next(Parser *p);
 
 #endif 
