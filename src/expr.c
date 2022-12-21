@@ -1,5 +1,6 @@
 #include <string.h>
 #include "expr.h"
+#include <ctype.h>
 
 Expr expr_init() {
   Expr e;
@@ -14,10 +15,29 @@ Node *expr_from(const char *src) {
   return root;
 }
 
-Node *expr_parse(Parser *p) {
-  Expr e = expr_init();
+void expr_parse_byte(Parser *p, Node *root, char first) {
+  if (p->err) {
+    return;
+  }
+}
 
+Node *expr_parse(Parser *p) {
+  if (p->err) {
+    return NULL;
+  }
+
+  Expr e = expr_init();
   Node *root = node_init(&e, sizeof(e));
+
+  char first = parser_next(p);
+  if (isxdigit(first)) {
+    expr_parse_byte(p, root, first);
+  } else {
+    Expr *self = node_get(root);
+    err(ERR_BAD_SYNTAX, "Synatax error at '%c' : %ld\n", first, p->pos);
+    self->err = ERR_BAD_SYNTAX;
+    p->err = ERR_BAD_SYNTAX;
+  }
 
   return root;
 }
