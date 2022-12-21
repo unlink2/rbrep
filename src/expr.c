@@ -1,6 +1,7 @@
 #include <string.h>
 #include "expr.h"
 #include <ctype.h>
+#include <stdlib.h>
 
 Expr expr_init() {
   Expr e;
@@ -15,9 +16,22 @@ Node *expr_from(const char *src) {
   return root;
 }
 
+void expr_syntax_err(Parser *p, Expr *e, char at) {
+  p->err = ERR_BAD_SYNTAX;
+  e->err = ERR_BAD_SYNTAX;
+  err(ERR_BAD_SYNTAX, "Synatax error at '%c' : %ld\n", at, p->pos);
+  exit(ERR_BAD_SYNTAX); // NOLINT
+}
+
 void expr_parse_byte(Parser *p, Node *root, char first) {
   if (p->err) {
     return;
+  }
+
+  // next needs to be hex digit too
+  char second = parser_next(p);
+  if (!isxdigit(second)) {
+    expr_syntax_err(p, node_get(root), second);
   }
 }
 
@@ -34,9 +48,7 @@ Node *expr_parse(Parser *p) {
     expr_parse_byte(p, root, first);
   } else {
     Expr *self = node_get(root);
-    err(ERR_BAD_SYNTAX, "Synatax error at '%c' : %ld\n", first, p->pos);
-    self->err = ERR_BAD_SYNTAX;
-    p->err = ERR_BAD_SYNTAX;
+    expr_syntax_err(p, self, first);
   }
 
   return root;

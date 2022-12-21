@@ -14,6 +14,10 @@ typedef struct Parser {
 
 Parser parser_init(const char *src);
 
+bool parser_end(Parser *p);
+char parser_peek(Parser *p);
+usize parser_trim(Parser *p);
+
 char parser_next(Parser *p);
 
 #endif 
