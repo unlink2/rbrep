@@ -20,8 +20,6 @@ Expr expr_parse(Parser *p) {
   return e;
 }
 
-void expr_insert(Expr *expr, Expr next) {}
-
 bool expr_is_err(const Expr *expr) { return FALSE; }
 
 void expr_free(Expr *expr) {}

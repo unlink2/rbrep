@@ -23,7 +23,6 @@ typedef struct Expr {
   };
      
   ExprKind kind;
-  struct Expr *next;
 
   Error err;
 } Expr;
@@ -31,8 +30,6 @@ typedef struct Expr {
 Expr expr_from(const char *src);
 
 Expr expr_parse(Parser *p);
-
-void expr_insert(Expr *expr, Expr next);
 
 bool expr_is_err(const Expr *expr);
 
