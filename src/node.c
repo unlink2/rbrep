@@ -13,6 +13,10 @@ Node *node_init(void *data, usize n) {
   return root;
 }
 
+void *node_get(const Node *root) { return root->data; }
+
+Node *node_next(const Node *root) { return root->next; }
+
 void node_insert(Node *root, void *data, usize n) {
   Node *head = root;
   while (head->next) {
@@ -21,9 +25,11 @@ void node_insert(Node *root, void *data, usize n) {
   head->next = node_init(data, n);
 }
 
-void node_free(Node *root) {
+void node_free(Node *root) { free(root); }
+
+void node_free_all(Node *root) {
   if (root->next) {
     node_free(root->next);
   }
-  free(root);
+  node_free(root);
 }

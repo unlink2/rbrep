@@ -5,6 +5,7 @@
 #include "parser.h"
 #include "types.h"
 #include <stdio.h>
+#include "node.h"
 
 typedef enum ExprKind {
   EXPR_BYTE,
@@ -27,13 +28,13 @@ typedef struct Expr {
   Error err;
 } Expr;
 
-Expr expr_from(const char *src);
+Node *expr_from(const char *src);
 
-Expr expr_parse(Parser *p);
+Node *expr_parse(Parser *p);
 
-bool expr_is_err(const Expr *expr);
+Error expr_is_err(const Node *root);
 
-void expr_free(Expr *expr);
+void expr_free(Node *root);
 
 Error expr_apply(const char *src, FILE *f);
 

@@ -8,20 +8,35 @@ Expr expr_init() {
   return e;
 }
 
-Expr expr_from(const char *src) {
+Node *expr_from(const char *src) {
   Parser p = parser_init(src);
-  Expr e = expr_parse(&p);
-  return e;
+  Node *root = expr_parse(&p);
+  return root;
 }
 
-Expr expr_parse(Parser *p) {
+Node *expr_parse(Parser *p) {
   Expr e = expr_init();
 
-  return e;
+  Node *root = node_init(&e, sizeof(e));
+
+  return root;
 }
 
-bool expr_is_err(const Expr *expr) { return FALSE; }
+Error expr_is_err(const Node *root) {
+  const Node *head = root;
+  while (head) {
+    Expr *e = node_get(head);
+    if (e->err) {
+      return e->err;
+    }
+    head = head->next;
+  }
+  return OK;
+}
 
-void expr_free(Expr *expr) {}
+void expr_free(Node *root) {
+  // TODO do special frees for certain types
+  node_free(root);
+}
 
 Error expr_apply(const char *src, FILE *f) { return OK; }

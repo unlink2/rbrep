@@ -16,5 +16,5 @@ char parser_next(Parser *p) {
     return '\0';
   }
 
-  return p->src[p->pos];
+  return p->src[p->pos++];
 }

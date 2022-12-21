@@ -9,7 +9,12 @@ typedef struct Node {
 } Node;
 
 Node *node_init(void *data, usize n);
+
+void *node_get(const Node *root);
+Node *node_next(const Node *root);
+
 void node_insert(Node *root, void *data, usize n);
 void node_free(Node *root);
+void node_free_all(Node *root);
 
 #endif 
