@@ -68,7 +68,7 @@ Error expr_is_err(const Node *root) {
 
 void expr_free(Node *root) {
   // TODO do special frees for certain types
-  node_free(root);
+  node_free_all(root);
 }
 
 Error expr_apply(const char *src, FILE *f) {

@@ -38,4 +38,5 @@ Please make sure that all existing tests pass before submitting a pull request.
 - .. can be used as a wildcard
 - any byte token can be multiplied e.g. *2 
 - spaces are optional and end a token, but are required after a multiplication
+- range aa-bb meaning [aa-bb[ 
 - full example: 'ffAA12..(aa|bb)\*2 cc\*3'
