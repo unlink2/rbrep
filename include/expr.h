@@ -38,6 +38,7 @@ Error expr_is_err(const Node *root);
 
 void expr_free(Node *root);
 
-Error expr_apply(const char *src, FILE *f);
+void expr_apply(Node *root, FILE *f);
+Error expr_apply_from(const char *src, FILE *f);
 
 #endif 

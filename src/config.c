@@ -26,7 +26,7 @@ void config_exec(Config *cfg, char *in) {
       err(ERR_FILE_NOT_FOUND, "File '%s' not found!\n", in);
       return;
     }
-    expr_apply(cfg->expr, f);
+    expr_apply_from(cfg->expr, f);
   } else {
     cfg->expr = in;
   }
@@ -38,6 +38,6 @@ void config_finish(Config *cfg) {
   }
 
   if (!cfg->did_use_file) {
-    expr_apply(cfg->expr, stdin);
+    expr_apply_from(cfg->expr, stdin);
   }
 }

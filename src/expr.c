@@ -71,9 +71,12 @@ void expr_free(Node *root) {
   node_free_all(root);
 }
 
-Error expr_apply(const char *src, FILE *f) {
+void expr_apply(Node *root, FILE *f) {}
+
+Error expr_apply_from(const char *src, FILE *f) {
   out("Test 123\n");
   Node *root = expr_from(src);
+  expr_apply(root, f);
   expr_free(root);
   return OK;
 }
