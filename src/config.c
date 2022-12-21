@@ -18,6 +18,7 @@ void config_exec(Config *cfg, char *in) {
   if (cfg->expr) {
     // TODO parse file
     cfg->did_use_file = TRUE;
+
   } else {
     cfg->expr = in;
   }

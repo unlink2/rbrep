@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include "node.h"
 
+#define out(...) fprintf(stdout, __VA_ARGS__)
+
 typedef enum ExprKind {
   EXPR_BYTE,
   EXPR_ANY,
