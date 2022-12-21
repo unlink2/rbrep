@@ -72,6 +72,8 @@ void expr_free(Node *root) {
 }
 
 Error expr_apply(const char *src, FILE *f) {
-  out("Test 123");
+  out("Test 123\n");
+  Node *root = expr_from(src);
+  expr_free(root);
   return OK;
 }

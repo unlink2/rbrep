@@ -7,8 +7,8 @@ Node *node_init(void *data, usize n) {
   Node *root = malloc(len);
   memset(root, 0, len);
 
-  root->data = root + sizeof(Node);
-  memcpy(root->data, data, n);
+  root->data = (void *)&root[1];
+  memcpy(root->data, data, n - 2);
 
   return root;
 }
