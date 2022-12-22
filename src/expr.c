@@ -71,12 +71,16 @@ void expr_free(Node *root) {
   node_free_all(root);
 }
 
-void expr_apply(Node *root, FILE *f) {}
+void expr_apply(Node *root, FILE *f, Buffer *b) {}
 
 Error expr_apply_from(const char *src, FILE *f) {
   out("Test 123\n");
   Node *root = expr_from(src);
-  expr_apply(root, f);
+  Buffer b = buffer_init();
+
+  expr_apply(root, f, &b);
   expr_free(root);
+  buffer_free(&b);
+
   return OK;
 }

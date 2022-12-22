@@ -1,6 +1,7 @@
 #ifndef EXPR_H_
 #define EXPR_H_ 
 
+#include "buffer.h"
 #include "error.h"
 #include "parser.h"
 #include "types.h"
@@ -38,7 +39,7 @@ Error expr_is_err(const Node *root);
 
 void expr_free(Node *root);
 
-void expr_apply(Node *root, FILE *f);
+void expr_apply(Node *root, FILE *f, Buffer *b);
 Error expr_apply_from(const char *src, FILE *f);
 
 #endif 
