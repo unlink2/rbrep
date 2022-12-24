@@ -1,3 +1,5 @@
+use rbrep::CFG;
+
 fn main() {
-    println!("Hello, world!");
+    println!("{}", CFG.expr);
 }
