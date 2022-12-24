@@ -4,6 +4,6 @@ pub mod expr;
 pub mod parser;
 
 pub use config::Config;
-pub use error::Error;
-pub use expr::Expr;
+pub use error::{Error, RbrepResult};
+pub use expr::{Expr, ExprBranch};
 pub use parser::Parser;
