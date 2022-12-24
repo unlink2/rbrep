@@ -1,6 +1,11 @@
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 pub struct Config {
     expr: String,
-    did_use_file: bool,
+
+    paths: Vec<String>,
 }
 
 impl Config {

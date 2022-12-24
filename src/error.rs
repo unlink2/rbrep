@@ -1,4 +1,7 @@
+use thiserror::Error;
+
+#[derive(Error, Debug)]
 pub enum Error {
-    FileNotFound,
+    #[error("Syntax error")]
     BadSyntax,
 }
