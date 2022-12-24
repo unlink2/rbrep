@@ -1,6 +1,20 @@
-use std::io::Read;
+use std::io::BufReader;
 
-use crate::{Error, Parser, RbrepResult};
+use crate::{Error, Parser, RbrepResult, CFG};
+
+pub fn exec() -> RbrepResult<()> {
+    // the tree to apply
+    let expr = Expr::tree_from(&CFG.expr)?;
+
+    // either use stdin, or match every file in the file list
+    // TODO allow recursion for directories
+    if CFG.paths.len() > 0 {
+        // TODO open each file and apply parsed tree
+        todo!("Not implemented")
+    } else {
+        Expr::apply(&expr, &mut BufReader::new(std::io::stdin()))
+    }
+}
 
 pub enum Expr {
     Byte { value: u8 },
@@ -41,7 +55,10 @@ impl Expr {
         }
     }
 
-    pub fn apply(&self, f: &mut dyn Read) -> RbrepResult<()> {
+    pub fn apply<T>(expr: &ExprBranch, f: &mut BufReader<T>) -> RbrepResult<()>
+    where
+        T: std::io::Read,
+    {
         Err(Error::Unknown)
     }
 }

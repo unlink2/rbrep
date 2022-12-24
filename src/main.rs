@@ -1,5 +1,6 @@
-use rbrep::CFG;
+use rbrep::exec;
 
 fn main() {
-    println!("{}", CFG.expr);
+    // TODO handle errors cleanly
+    exec().unwrap();
 }

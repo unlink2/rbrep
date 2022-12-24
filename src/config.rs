@@ -26,8 +26,4 @@ impl Config {
     pub fn new() -> Self {
         Self::parse()
     }
-
-    pub fn exec(&mut self) {}
-
-    pub fn finish(&mut self) {}
 }
