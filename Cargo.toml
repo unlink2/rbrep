@@ -2,7 +2,7 @@
 name = "rbrep"
 version = "0.1.0"
 edition = "2021"
-author = "Lukas Krickl <lukas@krickl.dev>"
+authors = ["Lukas Krickl <lukas@krickl.dev>"]
 
 [dependencies]
 anyhow = "1.0.68"
