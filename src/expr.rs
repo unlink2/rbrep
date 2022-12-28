@@ -40,7 +40,7 @@ impl Expr {
     fn parse_byte(parser: &mut Parser, first: char) -> RbrepResult<Expr> {
         let second = parser.next();
         let value = u8::from_str_radix(&format!("{}{}", first, second), 16)
-            .map_err(|_| Error::BadSyntax)?;
+            .map_err(|_| Error::BadSyntax(parser.pos))?;
 
         Ok(Expr::Byte { value })
     }

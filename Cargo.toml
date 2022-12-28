@@ -1,6 +1,6 @@
 [package]
 name = "rbrep"
-description = ""
+description = "Rust Binary Grep"
 version = "0.1.0"
 edition = "2021"
 authors = ["Lukas Krickl <lukas@krickl.dev>"]

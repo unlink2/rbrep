@@ -5,7 +5,7 @@ pub type RbrepResult<T> = Result<T, Error>;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Syntax error")]
-    BadSyntax,
+    BadSyntax(usize),
     #[error("Unknown error")]
     Unknown,
 }

@@ -1,6 +1,6 @@
 pub struct Parser {
     src: String,
-    pos: usize,
+    pub pos: usize,
 }
 
 impl Parser {
