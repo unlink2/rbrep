@@ -16,11 +16,25 @@ pub fn exec() -> RbrepResult<()> {
     }
 }
 
-pub enum Expr {
+#[derive(Clone)]
+pub enum ExprKind {
     Byte { value: u8 },
     Any,
-    Group,
-    String,
+    Group { nodes: Vec<Expr> },
+    String { value: String },
+    Range { from: u8, to: u8 },
+}
+
+#[derive(Clone)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub mul: usize,
+}
+
+impl Expr {
+    pub fn new(kind: ExprKind, mul: usize) -> Self {
+        Self { kind, mul }
+    }
 }
 
 pub type ExprBranch = Vec<Expr>;
@@ -42,7 +56,7 @@ impl Expr {
         let value = u8::from_str_radix(&format!("{}{}", first, second), 16)
             .map_err(|_| Error::BadSyntax(parser.pos))?;
 
-        Ok(Expr::Byte { value })
+        Ok(Expr::new(ExprKind::Byte { value }, 0))
     }
 
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {

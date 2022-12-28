@@ -35,7 +35,7 @@ Please make sure that all existing tests pass before submitting a pull request.
 ## Syntax Notes
 
 - Input is hex strings
-- .. can be used as a wildcard
+- ?? can be used as a wildcard
 - any byte token can be multiplied e.g. *2 
 - spaces are optional and end a token, but are required after a multiplication
 - range aa-bb meaning [aa-bb[ 
