@@ -1,0 +1,16 @@
+[package]
+name = "rbrep"
+description = "Rust Binary Grep"
+version = "0.1.0"
+edition = "2021"
+authors = ["Lukas Krickl <lukas@krickl.dev>"]
+license = "MIT"
+# license-file = "./LICENSE"
+readme = "README.md"
+repository = "https://github.com/unlink2/rbrep"
+
+[dependencies]
+anyhow = "1.0.68"
+clap = { version = "4.0.32", features = ["derive"] }
+lazy_static = "1.4.0"
+thiserror = "1.0.38"

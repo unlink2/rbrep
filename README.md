@@ -11,6 +11,15 @@
 
 ## Installation
 
+This program requires the latest stable release of rust.
+Once rust is set up correclty simply clone the repository.
+Then run:
+
+```sh
+cargo build # to build or
+cargo install  # to install 
+```
+
 ## Usage
 
 ## License
@@ -22,15 +31,6 @@ This program is distributed under the terms of the MIT License.
 All contributions are welcome.
 Both pull requests and issue reports are always appreciated.
 Please make sure that all existing tests pass before submitting a pull request.
-
-## Style
-
-- Macros and constants: MAX_SIZE
-- Enums: MyEnum
-- Enum Values: MYENUM_VALUE1
-- Structs and Typedefs: MyStruct
-- Functions: my_function()
-- Internal functions: my_internal_function_()
 
 ## Syntax Notes
 
