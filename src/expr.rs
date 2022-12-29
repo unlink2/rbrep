@@ -1,4 +1,7 @@
-use std::{fmt::Display, io::BufReader};
+use std::{
+    fmt::Display,
+    io::{BufReader, Read, Write},
+};
 
 use crate::{Error, Parser, RbrepResult, CFG};
 
@@ -14,7 +17,11 @@ pub fn exec() -> RbrepResult<()> {
         // TODO open each file and apply parsed tree
         todo!("Not implemented")
     } else {
-        Expr::apply(&expr, &mut BufReader::new(std::io::stdin()))
+        Expr::apply(
+            &expr,
+            &mut BufReader::new(std::io::stdin()),
+            &mut std::io::stdout(),
+        )
     }
 }
 
@@ -44,6 +51,16 @@ impl Display for ExprKind {
             ExprKind::Range { from, to } => write!(f, "[RANGE] from: {}, to: {}]", from, to),
         }?;
         write!(f, "]")
+    }
+}
+
+impl ExprKind {
+    pub fn len(&self) -> usize {
+        match self {
+            ExprKind::Group { nodes } => Expr::len(&nodes),
+            ExprKind::String { value } => value.bytes().len(),
+            _ => 1,
+        }
     }
 }
 
@@ -79,6 +96,12 @@ impl Expr {
             branch.push(Self::parse(parser)?);
         }
         Ok(branch)
+    }
+
+    // calculates how many bytes this expression tree may match
+    pub fn len(tree: &ExprBranch) -> usize {
+        tree.iter()
+            .fold(0, |i, n| i + n.kind.len() * n.mul as usize)
     }
 
     fn parse_byte_value(parser: &mut Parser) -> RbrepResult<u8> {
@@ -169,10 +192,7 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn apply<T>(expr: &ExprBranch, f: &mut BufReader<T>) -> RbrepResult<()>
-    where
-        T: std::io::Read,
-    {
+    pub fn apply(expr: &ExprBranch, i: &mut dyn Read, o: &mut dyn Write) -> RbrepResult<()> {
         Err(Error::Unknown)
     }
 }
