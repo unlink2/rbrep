@@ -8,4 +8,7 @@ pub enum Error {
     BadSyntax(usize),
     #[error("Unknown error")]
     Unknown,
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }

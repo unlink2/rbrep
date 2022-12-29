@@ -5,7 +5,7 @@ use std::{
 
 use crate::{Error, Parser, RbrepResult, CFG};
 
-pub fn exec() -> RbrepResult<()> {
+pub fn exec() -> anyhow::Result<()> {
     // the tree to apply
     let expr = Expr::tree_from(&CFG.expr)?;
 
@@ -121,16 +121,16 @@ impl Expr {
                     from: value.min(value2),
                     to: value2.max(value),
                 },
-                0,
+                1,
             ))
         } else {
-            Ok(Expr::new(ExprKind::Byte { value }, 0))
+            Ok(Expr::new(ExprKind::Byte { value }, 1))
         }
     }
 
     fn parse_any(parser: &mut Parser) -> RbrepResult<Expr> {
         if parser.next_if_trim('?') && parser.next_if_trim('?') {
-            Ok(Expr::new(ExprKind::Any, 0))
+            Ok(Expr::new(ExprKind::Any, 1))
         } else {
             Err(Error::BadSyntax(parser.pos))
         }
@@ -171,7 +171,7 @@ impl Expr {
             nodes.push(Self::parse(parser)?);
         }
 
-        Ok(Expr::new(ExprKind::Group { nodes }, 0))
+        Ok(Expr::new(ExprKind::Group { nodes }, 1))
     }
 
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
@@ -192,7 +192,55 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn apply(expr: &ExprBranch, i: &mut dyn Read, o: &mut dyn Write) -> RbrepResult<()> {
-        Err(Error::Unknown)
+    fn apply_rec(
+        expr: &ExprBranch,
+        i: &mut dyn Read,
+        o: &mut dyn Write,
+        buffer: &[u8],
+        offset: usize,
+    ) -> anyhow::Result<()> {
+        for e in expr {}
+        Ok(())
+    }
+
+    // here we read the data and manage the buffer
+    pub fn apply(expr: &ExprBranch, i: &mut dyn Read, o: &mut dyn Write) -> anyhow::Result<()> {
+        let mut next = [0; 1];
+        let mut buffer = vec![0; Expr::len(expr)];
+
+        println!("{}", Expr::len(expr));
+
+        // read initial buffer
+        let res = i.read_exact(&mut buffer);
+
+        // if the result was an error of Eof
+        // there can never be a match
+        match res {
+            Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
+            _ => res?,
+        }
+
+        loop {
+            // no matter what, we always advance a single byte
+            // to check all possible combinations
+            Self::apply_rec(expr, i, o, &buffer, 0)?;
+
+            // remove fisrt
+            buffer.remove(0);
+
+            // read a new byte
+            let res = i.read_exact(&mut next);
+            // same here, if it is eof
+            // we have simply reached the onf of the file!
+            match res {
+                Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                _ => res?,
+            }
+
+            // add next to vec
+            buffer.push(next[0]);
+        }
+
+        Ok(())
     }
 }
