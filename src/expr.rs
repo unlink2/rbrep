@@ -28,11 +28,11 @@ pub enum ExprKind {
 #[derive(Clone)]
 pub struct Expr {
     pub kind: ExprKind,
-    pub mul: usize,
+    pub mul: u32,
 }
 
 impl Expr {
-    pub fn new(kind: ExprKind, mul: usize) -> Self {
+    pub fn new(kind: ExprKind, mul: u32) -> Self {
         Self { kind, mul }
     }
 }
@@ -51,7 +51,8 @@ impl Expr {
         Ok(branch)
     }
 
-    fn parse_byte(parser: &mut Parser, first: char) -> RbrepResult<Expr> {
+    fn parse_byte(parser: &mut Parser) -> RbrepResult<Expr> {
+        let first = parser.next();
         let second = parser.next();
         let value = u8::from_str_radix(&format!("{}{}", first, second), 16)
             .map_err(|_| Error::BadSyntax(parser.pos))?;
@@ -59,7 +60,8 @@ impl Expr {
         Ok(Expr::new(ExprKind::Byte { value }, 0))
     }
 
-    fn parse_any(parser: &mut Parser, first: char) -> RbrepResult<Expr> {
+    fn parse_any(parser: &mut Parser) -> RbrepResult<Expr> {
+        let first = parser.next();
         let second = parser.next();
 
         if first == '?' && second == '?' {
@@ -74,20 +76,27 @@ impl Expr {
         if parser.peek() != '*' {
             return Ok(expr);
         }
+        // skip the * character
+        parser.next();
 
-        let mul = parser.next();
+        // now, get the slice of a numbers
+        let num = parser.until(|x| x.is_digit(10));
+
+        let num = u32::from_str_radix(num, 10).map_err(|_| Error::BadSyntax(parser.pos))?;
+
+        expr.mul = num;
 
         Ok(expr)
     }
 
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
-        let first = parser.next();
+        let first = parser.peek();
 
         let expr = match first {
-            '?' => Self::parse_any(parser, first),
+            '?' => Self::parse_any(parser),
             _ => {
                 if first.is_ascii_hexdigit() {
-                    Self::parse_byte(parser, first)
+                    Self::parse_byte(parser)
                 } else {
                     Err(Error::BadSyntax(parser.pos))
                 }

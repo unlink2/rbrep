@@ -36,6 +36,16 @@ impl Parser {
     // get a slice of the input stream starting at pos
     // until the condition in f is false
     pub fn until(&mut self, f: fn(x: char) -> bool) -> &str {
-        todo!()
+        let from = self.pos;
+
+        loop {
+            if self.is_end() || !f(self.peek()) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+        let to = self.pos;
+        &self.src[from..to]
     }
 }
