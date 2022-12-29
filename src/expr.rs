@@ -59,14 +59,36 @@ impl Expr {
         Ok(Expr::new(ExprKind::Byte { value }, 0))
     }
 
+    fn parse_any(parser: &mut Parser, first: char) -> RbrepResult<Expr> {
+        let second = parser.next();
+
+        if first == '?' && second == '?' {
+            Ok(Expr::new(ExprKind::Any, 0))
+        } else {
+            Err(Error::BadSyntax(parser.pos))
+        }
+    }
+
+    fn parse_mul(parser: &mut Parser, expr: Expr) -> RbrepResult<Expr> {
+        // TODO implement *n here
+        Ok(expr)
+    }
+
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
         let first = parser.next();
 
-        if first.is_ascii_hexdigit() {
-            Self::parse_byte(parser, first)
-        } else {
-            Err(Error::Unknown)
-        }
+        let mut expr = match first {
+            '?' => Self::parse_any(parser, first),
+            _ => {
+                if first.is_ascii_hexdigit() {
+                    Self::parse_byte(parser, first)
+                } else {
+                    Err(Error::BadSyntax(parser.pos))
+                }
+            }
+        }?;
+
+        Self::parse_mul(parser, expr)
     }
 
     pub fn apply<T>(expr: &ExprBranch, f: &mut BufReader<T>) -> RbrepResult<()>
