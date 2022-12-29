@@ -1,5 +1,5 @@
 pub struct Parser {
-    src: String,
+    pub src: String,
     pub pos: usize,
 }
 
@@ -26,14 +26,14 @@ impl Parser {
         self.peek()
     }
 
-    pub fn next_if_trim(&mut self, expected: char) -> bool {
+    pub fn adv_if_trim(&mut self, expected: char) -> bool {
         self.trim();
-        self.next_if(expected)
+        self.adv_if(expected)
     }
 
-    pub fn next_if(&mut self, expected: char) -> bool {
+    pub fn adv_if(&mut self, expected: char) -> bool {
         if self.peek() == expected {
-            self.next();
+            self.adv();
             true
         } else {
             false
@@ -44,7 +44,7 @@ impl Parser {
         self.pos >= self.src.len()
     }
 
-    pub fn next(&mut self) -> char {
+    pub fn adv(&mut self) -> char {
         self.trim();
         let c = self.peek();
 
@@ -61,7 +61,7 @@ impl Parser {
             if self.is_end() || !f(self.peek()) {
                 break;
             } else {
-                self.next();
+                self.adv();
             }
         }
         let to = self.pos;

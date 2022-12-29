@@ -22,6 +22,17 @@ cargo install  # to install
 
 ## Usage
 
+### Syntax
+
+The following options are available as of now:
+
+- any 8 bit hex number (e.g. 1a) will be interpreted as this precise value
+- ?? will match any value
+- A string (e.g. "a string") will match an exact string
+- A range (e.g. 1a-20) will match the range from n..m
+- A group will match the first valid item contained in it (e.g. (aabbaa-bb))
+- Any expression can be multiplied (e.g. aa*4)
+
 ## License
 
 This program is distributed under the terms of the MIT License.
@@ -31,12 +42,3 @@ This program is distributed under the terms of the MIT License.
 All contributions are welcome.
 Both pull requests and issue reports are always appreciated.
 Please make sure that all existing tests pass before submitting a pull request.
-
-## Syntax Notes
-
-- Input is hex strings
-- ?? can be used as a wildcard
-- any byte token can be multiplied e.g. *2 
-- spaces are optional and end a token, but are required after a multiplication
-- range aa-bb meaning [aa-bb[ 
-- full example: 'ffAA12..(aa|bb)\*2 cc\*3'

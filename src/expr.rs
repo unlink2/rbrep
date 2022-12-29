@@ -1,5 +1,7 @@
+use console::style;
 use std::{
     fmt::Display,
+    fs::File,
     io::{BufReader, Read, Write},
 };
 
@@ -11,13 +13,19 @@ pub fn exec() -> anyhow::Result<()> {
     // the tree to apply
     let expr = Expr::tree_from(&CFG.expr)?;
 
-    // expr.iter().for_each(|x| println!("{}", x));
+    if CFG.dbg_expr_tree {
+        expr.iter().for_each(|x| println!("{x}"));
+    }
 
     // either use stdin, or match every file in the file list
     // TODO allow recursion for directories
-    if CFG.paths.len() > 0 {
-        // TODO open each file and apply parsed tree
-        todo!("Not implemented")
+    if !CFG.paths.is_empty() {
+        // open each file and apply parsed tree
+        for path in &CFG.paths {
+            let f = File::open(path)?;
+            Expr::apply(&expr, &mut BufReader::new(f), &mut std::io::stdout(), path)?
+        }
+        Ok(())
     } else {
         Expr::apply(
             &expr,
@@ -46,17 +54,17 @@ impl Display for ExprKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "ExprKind: [")?;
         match self {
-            ExprKind::Byte { value } => write!(f, "[BYTE] value: {}", value),
+            ExprKind::Byte { value } => write!(f, "[BYTE] value: {value}"),
             ExprKind::Any => write!(f, "[ANY]"),
             ExprKind::Group { nodes } => {
                 write!(f, "[GROUP]")?;
                 for node in nodes {
-                    write!(f, "{},\n", node)?;
+                    writeln!(f, "{node},")?;
                 }
                 write!(f, "")
             }
-            ExprKind::String { value } => write!(f, "[STRING] value: {}]", value),
-            ExprKind::Range { from, to } => write!(f, "[RANGE] from: {}, to: {}]", from, to),
+            ExprKind::String { value } => write!(f, "[STRING] value: {value}]"),
+            ExprKind::Range { from, to } => write!(f, "[RANGE] from: {from}, to: {to}]"),
         }?;
         write!(f, "]")
     }
@@ -70,10 +78,14 @@ impl ExprKind {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
         match self {
             ExprKind::Byte { value } => {
-                if buffer.get(0)? == value {
+                if buffer.first()? == value {
                     Some(self.len())
                 } else {
                     None
@@ -83,16 +95,14 @@ impl ExprKind {
             ExprKind::Group { nodes } => Expr::match_any(nodes, buffer),
             ExprKind::String { value } => {
                 // compare to literal string
-                if String::from_utf8(buffer[0..buffer.len()].to_vec()).unwrap_or("".into())
-                    == *value
-                {
+                if buffer[0..self.len()] == *value.as_bytes() {
                     Some(self.len())
                 } else {
                     None
                 }
             }
             ExprKind::Range { from, to } => {
-                if (*from..*to).contains(buffer.get(0)?) {
+                if (*from..*to).contains(buffer.first()?) {
                     Some(self.len())
                 } else {
                     None
@@ -143,15 +153,15 @@ impl Expr {
     }
 
     fn parse_byte_value(parser: &mut Parser) -> RbrepResult<u8> {
-        let first = parser.next();
-        let second = parser.next();
-        u8::from_str_radix(&format!("{}{}", first, second), 16)
+        let first = parser.adv();
+        let second = parser.adv();
+        u8::from_str_radix(&format!("{first}{second}"), 16)
             .map_err(|_| Error::BadSyntax(parser.pos))
     }
 
     fn parse_byte_or_range(parser: &mut Parser) -> RbrepResult<Expr> {
         let value = Self::parse_byte_value(parser)?;
-        if parser.next_if_trim('-') {
+        if parser.adv_if_trim('-') {
             let value2 = Self::parse_byte_value(parser)?;
             Ok(Expr::new(
                 ExprKind::Range {
@@ -167,7 +177,7 @@ impl Expr {
     }
 
     fn parse_any(parser: &mut Parser) -> RbrepResult<Expr> {
-        if parser.next_if_trim('?') && parser.next_if_trim('?') {
+        if parser.adv_if_trim('?') && parser.adv_if_trim('?') {
             Ok(Expr::new(ExprKind::Any, 1))
         } else {
             Err(Error::BadSyntax(parser.pos))
@@ -176,33 +186,35 @@ impl Expr {
 
     fn parse_mul(parser: &mut Parser, mut expr: Expr) -> RbrepResult<Expr> {
         // if not a mul return
-        if !parser.next_if_trim('*') {
+        if !parser.adv_if_trim('*') {
             return Ok(expr);
         }
 
         // now, get the slice of a numbers
-        let num = parser.until(|x| x.is_digit(10));
+        let num = parser.until(|x| x.is_ascii_digit());
 
-        let num = u32::from_str_radix(num, 10).map_err(|_| Error::BadSyntax(parser.pos))?;
+        let num = num
+            .parse::<u32>()
+            .map_err(|_| Error::BadSyntax(parser.pos))?;
 
         expr.mul = num;
 
         // ; is required after mul
-        if !parser.next_if_trim(';') {
-            return Err(Error::BadSyntax(parser.pos));
+        if !parser.adv_if_trim(';') {
+            Err(Error::BadSyntax(parser.pos))
         } else {
             Ok(expr)
         }
     }
 
     fn parse_group(parser: &mut Parser) -> RbrepResult<Expr> {
-        if !parser.next_if_trim('(') {
+        if !parser.adv_if_trim('(') {
             return Err(Error::BadSyntax(parser.pos));
         }
 
         let mut nodes = vec![];
 
-        while !parser.next_if_trim(')') {
+        while !parser.adv_if_trim(')') {
             if parser.is_end() {
                 return Err(Error::BadSyntax(parser.pos));
             }
@@ -212,12 +224,32 @@ impl Expr {
         Ok(Expr::new(ExprKind::Group { nodes }, 1))
     }
 
+    fn parse_string(parser: &mut Parser) -> RbrepResult<Expr> {
+        if !parser.adv_if_trim('"') {
+            return Err(Error::BadSyntax(parser.pos));
+        }
+
+        let start = parser.pos;
+        // FIXME maybe allow escaping "s
+        // but for now the user could just insert the ascii value...
+        while !parser.adv_if_trim('"') {
+            if parser.is_end() {
+                return Err(Error::BadSyntax(parser.pos));
+            }
+            parser.adv();
+        }
+        let end = parser.pos - 1;
+        let string = parser.src[start..end].to_owned();
+        Ok(Expr::new(ExprKind::String { value: string }, 1))
+    }
+
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
         let first = parser.peek_trim();
 
         let expr = match first {
             '?' => Self::parse_any(parser),
             '(' => Self::parse_group(parser),
+            '"' => Self::parse_string(parser),
             _ => {
                 if first.is_ascii_hexdigit() {
                     Self::parse_byte_or_range(parser)
@@ -261,15 +293,15 @@ impl Expr {
     // match any
     // matches any of the group and if it ends up matching, returns
     fn match_any(expr: &ExprBranch, buffer: &[u8]) -> Option<usize> {
-        if buffer.len() < Expr::single_len() {
+        // find the shortest lenght in all nodes
+        // this is the lenght we will at least require at this stage
+        if buffer.len() < expr.iter().fold(0, |i, n| usize::min(n.kind.len(), i)) {
             return None;
         }
 
         for e in expr {
-            match e.is_match(buffer) {
-                Some(amount) => return Some(amount),
-                // no match => continue
-                _ => {}
+            if let Some(amount) = e.is_match(buffer) {
+                return Some(amount);
             }
         }
         // got to end without success => no match found!
@@ -305,16 +337,16 @@ impl Expr {
             // to check all possible combinations
             if Self::match_all(expr, &buffer).is_some() {
                 if first_in_file {
-                    writeln!(o, "{}", name)?;
+                    writeln!(o, "{}", style(name).magenta())?;
                     first_in_file = false;
                 }
 
                 // print current buffer if match
-                write!(o, "{:08x}\t", total)?;
+                write!(o, "{:08x}\t", style(total).green())?;
                 for b in &buffer {
-                    write!(o, "{:02x}", b)?;
+                    write!(o, "{:02x}", style(b).red())?;
                 }
-                write!(o, "\n")?;
+                writeln!(o)?;
                 // matches += 1;
             }
 

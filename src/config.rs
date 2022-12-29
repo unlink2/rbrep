@@ -5,21 +5,15 @@ lazy_static! {
     pub static ref CFG: Config = Config::new();
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(author, version, about, long_about = None)]
 pub struct Config {
     pub expr: String,
 
     pub paths: Vec<String>,
-}
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            expr: "".into(),
-            paths: vec![],
-        }
-    }
+    #[arg(long, default_value_t = false)]
+    pub dbg_expr_tree: bool,
 }
 
 impl Config {

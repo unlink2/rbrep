@@ -1,8 +1,9 @@
 use rbrep::exec;
 
 fn main() {
-    // TODO handle errors cleanly
-    exec().unwrap();
+    if let Err(error) = exec() {
+        println!("{}", error);
+    }
 }
 
 #[cfg(test)]
