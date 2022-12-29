@@ -22,6 +22,8 @@ cargo install  # to install
 
 ## Usage
 
+![Gif showing rbrep in action](https://raw.githubusercontent.com/unlink2/misc-resources/main/rbrep-usage.gif)
+
 ### Syntax
 
 The following options are available as of now:
