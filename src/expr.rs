@@ -5,6 +5,8 @@ use std::{
 
 use crate::{Error, Parser, RbrepResult, CFG};
 
+pub type ExprBranch = Vec<Expr>;
+
 pub fn exec() -> anyhow::Result<()> {
     // the tree to apply
     let expr = Expr::tree_from(&CFG.expr)?;
@@ -62,6 +64,10 @@ impl ExprKind {
             _ => 1,
         }
     }
+
+    pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -80,11 +86,7 @@ impl Expr {
     pub fn new(kind: ExprKind, mul: u32) -> Self {
         Self { kind, mul }
     }
-}
 
-pub type ExprBranch = Vec<Expr>;
-
-impl Expr {
     pub fn tree_from(src: &str) -> RbrepResult<ExprBranch> {
         let mut parser = Parser::new(src);
         Self::tree_from_parser(&mut parser)
@@ -192,23 +194,31 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    fn apply_rec(
-        expr: &ExprBranch,
-        i: &mut dyn Read,
-        o: &mut dyn Write,
-        buffer: &[u8],
-        offset: usize,
-    ) -> anyhow::Result<()> {
-        for e in expr {}
-        Ok(())
+    pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
+        let mut total = 0;
+        for _ in 0..self.mul {
+            total += self.kind.is_match(&buffer[total..])?
+        }
+        Some(total)
+    }
+
+    fn match_all(expr: &ExprBranch, buffer: &[u8]) -> anyhow::Result<bool> {
+        let mut total = 0;
+        for e in expr {
+            match e.is_match(&buffer[total..]) {
+                Some(amount) => total += amount,
+                // no match => return
+                _ => return Ok(false),
+            }
+        }
+        // got to end without fail => match found!
+        Ok(true)
     }
 
     // here we read the data and manage the buffer
     pub fn apply(expr: &ExprBranch, i: &mut dyn Read, o: &mut dyn Write) -> anyhow::Result<()> {
         let mut next = [0; 1];
         let mut buffer = vec![0; Expr::len(expr)];
-
-        println!("{}", Expr::len(expr));
 
         // read initial buffer
         let res = i.read_exact(&mut buffer);
@@ -223,7 +233,9 @@ impl Expr {
         loop {
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            Self::apply_rec(expr, i, o, &buffer, 0)?;
+            if Self::match_all(expr, &buffer)? {
+                // TODO print current buffer if match
+            }
 
             // remove fisrt
             buffer.remove(0);
