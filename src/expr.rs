@@ -73,6 +73,7 @@ impl Display for ExprKind {
 impl ExprKind {
     pub fn len(&self) -> usize {
         match self {
+            ExprKind::Group { nodes } => nodes.iter().fold(0, |i, n| i.max(n.kind.len())),
             ExprKind::String { value } => value.bytes().len(),
             _ => Expr::single_len(),
         }
