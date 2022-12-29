@@ -21,6 +21,16 @@ impl Parser {
         self.src.chars().nth(self.pos).unwrap_or('\0')
     }
 
+    pub fn peek_trim(&mut self) -> char {
+        self.trim();
+        self.peek()
+    }
+
+    pub fn next_if_trim(&mut self, expected: char) -> bool {
+        self.trim();
+        self.next_if(expected)
+    }
+
     pub fn next_if(&mut self, expected: char) -> bool {
         if self.peek() == expected {
             self.next();

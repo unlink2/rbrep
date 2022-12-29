@@ -36,12 +36,12 @@ impl Display for ExprKind {
             ExprKind::Group { nodes } => {
                 write!(f, "[GROUP]")?;
                 for node in nodes {
-                    write!(f, "{}, ", node)?;
+                    write!(f, "{},\n", node)?;
                 }
                 write!(f, "")
             }
-            ExprKind::String { value } => write!(f, "[STRING] value: {}", value),
-            ExprKind::Range { from, to } => write!(f, "[RANGE] from: {}, to: {}", from, to),
+            ExprKind::String { value } => write!(f, "[STRING] value: {}]", value),
+            ExprKind::Range { from, to } => write!(f, "[RANGE] from: {}, to: {}]", from, to),
         }?;
         write!(f, "]")
     }
@@ -55,7 +55,7 @@ pub struct Expr {
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "kind: {} mul: {}", self.kind, self.mul)
+        write!(f, "[kind: {} mul: {}]", self.kind, self.mul)
     }
 }
 
@@ -90,7 +90,7 @@ impl Expr {
 
     fn parse_byte_or_range(parser: &mut Parser) -> RbrepResult<Expr> {
         let value = Self::parse_byte_value(parser)?;
-        if parser.next_if('-') {
+        if parser.next_if_trim('-') {
             let value2 = Self::parse_byte_value(parser)?;
             Ok(Expr::new(
                 ExprKind::Range {
@@ -105,7 +105,7 @@ impl Expr {
     }
 
     fn parse_any(parser: &mut Parser) -> RbrepResult<Expr> {
-        if parser.next_if('?') && parser.next_if('?') {
+        if parser.next_if_trim('?') && parser.next_if_trim('?') {
             Ok(Expr::new(ExprKind::Any, 0))
         } else {
             Err(Error::BadSyntax(parser.pos))
@@ -114,7 +114,7 @@ impl Expr {
 
     fn parse_mul(parser: &mut Parser, mut expr: Expr) -> RbrepResult<Expr> {
         // if not a mul return
-        if !parser.next_if('*') {
+        if !parser.next_if_trim('*') {
             return Ok(expr);
         }
 
@@ -126,18 +126,36 @@ impl Expr {
         expr.mul = num;
 
         // ; is required after mul
-        if !parser.next_if(';') {
+        if !parser.next_if_trim(';') {
             return Err(Error::BadSyntax(parser.pos));
         } else {
             Ok(expr)
         }
     }
 
+    fn parse_group(parser: &mut Parser) -> RbrepResult<Expr> {
+        if !parser.next_if_trim('(') {
+            return Err(Error::BadSyntax(parser.pos));
+        }
+
+        let mut nodes = vec![];
+
+        while !parser.next_if_trim(')') {
+            if parser.is_end() {
+                return Err(Error::BadSyntax(parser.pos));
+            }
+            nodes.push(Self::parse(parser)?);
+        }
+
+        Ok(Expr::new(ExprKind::Group { nodes }, 0))
+    }
+
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
-        let first = parser.peek();
+        let first = parser.peek_trim();
 
         let expr = match first {
             '?' => Self::parse_any(parser),
+            '(' => Self::parse_group(parser),
             _ => {
                 if first.is_ascii_hexdigit() {
                     Self::parse_byte_or_range(parser)
