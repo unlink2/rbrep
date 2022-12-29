@@ -94,8 +94,9 @@ impl Expr {
             let value2 = Self::parse_byte_value(parser)?;
             Ok(Expr::new(
                 ExprKind::Range {
-                    from: value,
-                    to: value2,
+                    // TODO should we allow this behaviour?
+                    from: value.min(value2),
+                    to: value2.max(value),
                 },
                 0,
             ))
