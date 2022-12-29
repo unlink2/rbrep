@@ -11,7 +11,7 @@ pub fn exec() -> anyhow::Result<()> {
     // the tree to apply
     let expr = Expr::tree_from(&CFG.expr)?;
 
-    expr.iter().for_each(|x| println!("{}", x));
+    // expr.iter().for_each(|x| println!("{}", x));
 
     // either use stdin, or match every file in the file list
     // TODO allow recursion for directories
@@ -23,16 +23,22 @@ pub fn exec() -> anyhow::Result<()> {
             &expr,
             &mut BufReader::new(std::io::stdin()),
             &mut std::io::stdout(),
+            "stdin",
         )
     }
 }
 
 #[derive(Clone)]
 pub enum ExprKind {
+    // a single byte value
     Byte { value: u8 },
+    // any string
     Any,
+    // OR combination of expressions
     Group { nodes: Vec<Expr> },
+    // a full string
     String { value: String },
+    // a range from..to
     Range { from: u8, to: u8 },
 }
 
@@ -59,14 +65,40 @@ impl Display for ExprKind {
 impl ExprKind {
     pub fn len(&self) -> usize {
         match self {
-            ExprKind::Group { nodes } => Expr::len(&nodes),
             ExprKind::String { value } => value.bytes().len(),
-            _ => 1,
+            _ => Expr::single_len(),
         }
     }
 
     pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
-        None
+        match self {
+            ExprKind::Byte { value } => {
+                if buffer.get(0)? == value {
+                    Some(self.len())
+                } else {
+                    None
+                }
+            }
+            ExprKind::Any => Some(self.len()),
+            ExprKind::Group { nodes } => Expr::match_any(nodes, buffer),
+            ExprKind::String { value } => {
+                // compare to literal string
+                if String::from_utf8(buffer[0..buffer.len()].to_vec()).unwrap_or("".into())
+                    == *value
+                {
+                    Some(self.len())
+                } else {
+                    None
+                }
+            }
+            ExprKind::Range { from, to } => {
+                if (*from..*to).contains(buffer.get(0)?) {
+                    Some(self.len())
+                } else {
+                    None
+                }
+            }
+        }
     }
 }
 
@@ -98,6 +130,10 @@ impl Expr {
             branch.push(Self::parse(parser)?);
         }
         Ok(branch)
+    }
+
+    pub fn single_len() -> usize {
+        1
     }
 
     // calculates how many bytes this expression tree may match
@@ -196,29 +232,63 @@ impl Expr {
 
     pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
         let mut total = 0;
+
         for _ in 0..self.mul {
             total += self.kind.is_match(&buffer[total..])?
         }
         Some(total)
     }
 
-    fn match_all(expr: &ExprBranch, buffer: &[u8]) -> anyhow::Result<bool> {
+    // match all
+    // the buffer should match the lenght of the expr
+    fn match_all(expr: &ExprBranch, buffer: &[u8]) -> Option<usize> {
+        if buffer.len() < Expr::len(expr) {
+            return None;
+        }
+
         let mut total = 0;
         for e in expr {
             match e.is_match(&buffer[total..]) {
                 Some(amount) => total += amount,
                 // no match => return
-                _ => return Ok(false),
+                _ => return None,
             }
         }
         // got to end without fail => match found!
-        Ok(true)
+        Some(total)
+    }
+
+    // match any
+    // matches any of the group and if it ends up matching, returns
+    fn match_any(expr: &ExprBranch, buffer: &[u8]) -> Option<usize> {
+        if buffer.len() < Expr::single_len() {
+            return None;
+        }
+
+        for e in expr {
+            match e.is_match(buffer) {
+                Some(amount) => return Some(amount),
+                // no match => continue
+                _ => {}
+            }
+        }
+        // got to end without success => no match found!
+        None
     }
 
     // here we read the data and manage the buffer
-    pub fn apply(expr: &ExprBranch, i: &mut dyn Read, o: &mut dyn Write) -> anyhow::Result<()> {
+    pub fn apply(
+        expr: &ExprBranch,
+        i: &mut dyn Read,
+        o: &mut dyn Write,
+        name: &str,
+    ) -> anyhow::Result<()> {
         let mut next = [0; 1];
         let mut buffer = vec![0; Expr::len(expr)];
+
+        let mut total = 0;
+        let mut first_in_file = true;
+        // let mut matches = 0;
 
         // read initial buffer
         let res = i.read_exact(&mut buffer);
@@ -233,8 +303,19 @@ impl Expr {
         loop {
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            if Self::match_all(expr, &buffer)? {
-                // TODO print current buffer if match
+            if Self::match_all(expr, &buffer).is_some() {
+                if first_in_file {
+                    writeln!(o, "{}", name)?;
+                    first_in_file = false;
+                }
+
+                // print current buffer if match
+                write!(o, "{:08x}\t", total)?;
+                for b in &buffer {
+                    write!(o, "{:02x}", b)?;
+                }
+                write!(o, "\n")?;
+                // matches += 1;
             }
 
             // remove fisrt
@@ -251,6 +332,7 @@ impl Expr {
 
             // add next to vec
             buffer.push(next[0]);
+            total += 1;
         }
 
         Ok(())

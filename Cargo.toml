@@ -1,7 +1,7 @@
 [package]
 name = "rbrep"
 description = "Rust Binary Grep"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 authors = ["Lukas Krickl <lukas@krickl.dev>"]
 license = "MIT"
