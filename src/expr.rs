@@ -69,15 +69,21 @@ impl Expr {
         }
     }
 
-    fn parse_mul(parser: &mut Parser, expr: Expr) -> RbrepResult<Expr> {
-        // TODO implement *n here
+    fn parse_mul(parser: &mut Parser, mut expr: Expr) -> RbrepResult<Expr> {
+        // if not a mul return
+        if parser.peek() != '*' {
+            return Ok(expr);
+        }
+
+        let mul = parser.next();
+
         Ok(expr)
     }
 
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
         let first = parser.next();
 
-        let mut expr = match first {
+        let expr = match first {
             '?' => Self::parse_any(parser, first),
             _ => {
                 if first.is_ascii_hexdigit() {

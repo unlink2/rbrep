@@ -32,4 +32,10 @@ impl Parser {
         self.pos += 1;
         c
     }
+
+    // get a slice of the input stream starting at pos
+    // until the condition in f is false
+    pub fn until(&mut self, f: fn(x: char) -> bool) -> &str {
+        todo!()
+    }
 }
