@@ -21,6 +21,15 @@ impl Parser {
         self.src.chars().nth(self.pos).unwrap_or('\0')
     }
 
+    pub fn next_if(&mut self, expected: char) -> bool {
+        if self.peek() == expected {
+            self.next();
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn is_end(&self) -> bool {
         self.pos >= self.src.len()
     }
