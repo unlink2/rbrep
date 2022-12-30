@@ -9,6 +9,8 @@ use crate::{Error, Parser, RbrepResult, CFG};
 
 pub type ExprBranch = Vec<Expr>;
 
+fn no_output_cb(_: ExprOutput) {}
+
 pub fn exec() -> anyhow::Result<()> {
     // the tree to apply
     let expr = Expr::tree_from(&CFG.expr)?;
@@ -42,6 +44,8 @@ pub enum ExprKind {
     Byte { value: u8 },
     // And expression
     And { value: u8 },
+    // Not
+    Not { expr: Box<Expr> },
     // any string
     Any,
     // OR combination of expressions
@@ -58,6 +62,7 @@ impl Display for ExprKind {
         match self {
             ExprKind::Byte { value } => write!(f, "[BYTE] value: {value}"),
             ExprKind::And { value } => write!(f, "[AND] value: {value}"),
+            ExprKind::Not { expr } => write!(f, "[NOT] expr: {expr}"),
             ExprKind::Any => write!(f, "[ANY]"),
             ExprKind::Group { nodes } => {
                 write!(f, "[GROUP]")?;
@@ -102,6 +107,17 @@ impl ExprKind {
             }
             ExprKind::And { value } => {
                 if first & value != 0 {
+                    f(ExprOutput::new(*first, true));
+                    Some(self.len())
+                } else {
+                    None
+                }
+            }
+            ExprKind::Not { expr } => {
+                // apply matcher to next function, but do not use the
+                // callback. Only if the parser returns an error, call callback
+                // for the next value
+                if expr.is_match(buffer, &mut no_output_cb).is_none() {
                     f(ExprOutput::new(*first, true));
                     Some(self.len())
                 } else {
@@ -289,6 +305,18 @@ impl Expr {
         Ok(Expr::new(ExprKind::And { value }, 1))
     }
 
+    fn parse_not(parser: &mut Parser) -> RbrepResult<Expr> {
+        if !parser.adv_if_trim('!') {
+            return Err(Error::BadSyntax(parser.pos));
+        }
+        Ok(Expr::new(
+            ExprKind::Not {
+                expr: Box::new(Self::parse(parser)?),
+            },
+            1,
+        ))
+    }
+
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
         let first = parser.peek_trim();
 
@@ -297,6 +325,7 @@ impl Expr {
             '(' => Self::parse_group(parser),
             '"' => Self::parse_string(parser),
             '&' => Self::parse_and(parser),
+            '!' => Self::parse_not(parser),
             _ => {
                 if first.is_ascii_hexdigit() {
                     Self::parse_byte_or_range(parser)
