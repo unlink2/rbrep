@@ -49,7 +49,7 @@ pub enum ExprKind {
     // any string
     Any,
     // OR combination of expressions
-    Group { nodes: Vec<Expr> },
+    Group { nodes: Vec<Expr>, and: bool },
     // a full string
     String { value: String },
     // a range from..to
@@ -64,8 +64,8 @@ impl Display for ExprKind {
             ExprKind::And { value } => write!(f, "[AND] value: {value}"),
             ExprKind::Not { expr } => write!(f, "[NOT] expr: {expr}"),
             ExprKind::Any => write!(f, "[ANY]"),
-            ExprKind::Group { nodes } => {
-                write!(f, "[GROUP]")?;
+            ExprKind::Group { nodes, and } => {
+                write!(f, "[GROUP] {and}")?;
                 for node in nodes {
                     writeln!(f, "{node},")?;
                 }
@@ -81,7 +81,13 @@ impl Display for ExprKind {
 impl ExprKind {
     pub fn len(&self) -> usize {
         match self {
-            ExprKind::Group { nodes } => nodes.iter().fold(0, |i, n| i.max(n.kind.len())),
+            ExprKind::Group { nodes, and } => {
+                if *and {
+                    nodes.iter().fold(0, |i, n| i + n.kind.len())
+                } else {
+                    nodes.iter().fold(0, |i, n| i.max(n.kind.len()))
+                }
+            }
             ExprKind::String { value } => value.bytes().len(),
             _ => Expr::single_len(),
         }
@@ -128,7 +134,13 @@ impl ExprKind {
                 f(ExprOutput::new(*first, false));
                 Some(self.len())
             }
-            ExprKind::Group { nodes } => Expr::match_any(nodes, buffer, f),
+            ExprKind::Group { nodes, and } => {
+                if *and {
+                    Expr::match_all(nodes, buffer, f)
+                } else {
+                    Expr::match_any(nodes, buffer, f)
+                }
+            }
             ExprKind::String { value } => {
                 // compare to literal string
                 if buffer[0..self.len()] == *value.as_bytes() {
@@ -259,7 +271,7 @@ impl Expr {
         }
     }
 
-    fn parse_group(parser: &mut Parser) -> RbrepResult<Expr> {
+    fn parse_group(parser: &mut Parser, and: bool) -> RbrepResult<Expr> {
         if !parser.adv_if_trim('(') {
             return Err(Error::BadSyntax(parser.pos));
         }
@@ -273,7 +285,7 @@ impl Expr {
             nodes.push(Self::parse(parser)?);
         }
 
-        Ok(Expr::new(ExprKind::Group { nodes }, 1))
+        Ok(Expr::new(ExprKind::Group { nodes, and }, 1))
     }
 
     fn parse_string(parser: &mut Parser) -> RbrepResult<Expr> {
@@ -300,9 +312,14 @@ impl Expr {
             return Err(Error::BadSyntax(parser.pos));
         }
 
-        let value = Self::parse_byte_value(parser)?;
+        // is it an and group?
+        if parser.peek_trim() == '(' {
+            Self::parse_group(parser, true)
+        } else {
+            let value = Self::parse_byte_value(parser)?;
 
-        Ok(Expr::new(ExprKind::And { value }, 1))
+            Ok(Expr::new(ExprKind::And { value }, 1))
+        }
     }
 
     fn parse_not(parser: &mut Parser) -> RbrepResult<Expr> {
@@ -322,7 +339,7 @@ impl Expr {
 
         let expr = match first {
             '?' => Self::parse_any(parser),
-            '(' => Self::parse_group(parser),
+            '(' => Self::parse_group(parser, false),
             '"' => Self::parse_string(parser),
             '&' => Self::parse_and(parser),
             '!' => Self::parse_not(parser),
