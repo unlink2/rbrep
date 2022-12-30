@@ -356,7 +356,7 @@ impl Expr {
 
         let mut total = 0;
         let mut first_in_file = true;
-        // let mut matches = 0;
+        let mut matches = 0;
 
         // read initial buffer
         let res = i.read_exact(&mut buffer);
@@ -381,20 +381,23 @@ impl Expr {
                 }
 
                 // print current buffer if match
-                write!(o, "{:08x}\t", style(total).green())?;
-                for (i, b) in output.iter().enumerate() {
-                    if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
-                        write!(o, " ")?;
-                    }
+                // and count is not set
+                if !CFG.count {
+                    write!(o, "{:08x}\t", style(total).green())?;
+                    for (i, b) in output.iter().enumerate() {
+                        if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
+                            write!(o, " ")?;
+                        }
 
-                    if !b.highlight {
-                        write!(o, "{:02x}", style(b.value))?;
-                    } else {
-                        write!(o, "{:02x}", style(b.value).red())?;
+                        if !b.highlight {
+                            write!(o, "{:02x}", style(b.value))?;
+                        } else {
+                            write!(o, "{:02x}", style(b.value).red())?;
+                        }
                     }
+                    writeln!(o)?;
                 }
-                writeln!(o)?;
-                // matches += 1;
+                matches += 1;
             }
 
             // remove fisrt
@@ -412,6 +415,10 @@ impl Expr {
             // add next to vec
             buffer.push(next[0]);
             total += 1;
+        }
+
+        if CFG.count {
+            writeln!(o, "{matches}")?;
         }
 
         Ok(())

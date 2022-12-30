@@ -17,6 +17,9 @@ pub struct Config {
 
     #[arg(long, short, default_value_t = 1)]
     pub space: u32,
+
+    #[arg(long, short)]
+    pub count: bool,
 }
 
 impl Config {
