@@ -383,10 +383,8 @@ impl Expr {
                 // print current buffer if match
                 write!(o, "{:08x}\t", style(total).green())?;
                 for (i, b) in output.iter().enumerate() {
-                    if let Some(space) = CFG.space {
-                        if space != 0 && i != 0 && i as u32 % space == 0 {
-                            write!(o, " ")?;
-                        }
+                    if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
+                        write!(o, " ")?;
                     }
 
                     if !b.highlight {
