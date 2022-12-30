@@ -40,6 +40,8 @@ pub fn exec() -> anyhow::Result<()> {
 pub enum ExprKind {
     // a single byte value
     Byte { value: u8 },
+    // And expression
+    And { value: u8 },
     // any string
     Any,
     // OR combination of expressions
@@ -55,6 +57,7 @@ impl Display for ExprKind {
         write!(f, "ExprKind: [")?;
         match self {
             ExprKind::Byte { value } => write!(f, "[BYTE] value: {value}"),
+            ExprKind::And { value } => write!(f, "[AND] value: {value}"),
             ExprKind::Any => write!(f, "[ANY]"),
             ExprKind::Group { nodes } => {
                 write!(f, "[GROUP]")?;
@@ -91,6 +94,14 @@ impl ExprKind {
         match self {
             ExprKind::Byte { value } => {
                 if first == value {
+                    f(ExprOutput::new(*first, true));
+                    Some(self.len())
+                } else {
+                    None
+                }
+            }
+            ExprKind::And { value } => {
+                if first & value != 0 {
                     f(ExprOutput::new(*first, true));
                     Some(self.len())
                 } else {
@@ -268,6 +279,16 @@ impl Expr {
         Ok(Expr::new(ExprKind::String { value: string }, 1))
     }
 
+    fn parse_and(parser: &mut Parser) -> RbrepResult<Expr> {
+        if !parser.adv_if_trim('&') {
+            return Err(Error::BadSyntax(parser.pos));
+        }
+
+        let value = Self::parse_byte_value(parser)?;
+
+        Ok(Expr::new(ExprKind::And { value }, 1))
+    }
+
     fn parse(parser: &mut Parser) -> RbrepResult<Expr> {
         let first = parser.peek_trim();
 
@@ -275,6 +296,7 @@ impl Expr {
             '?' => Self::parse_any(parser),
             '(' => Self::parse_group(parser),
             '"' => Self::parse_string(parser),
+            '&' => Self::parse_and(parser),
             _ => {
                 if first.is_ascii_hexdigit() {
                     Self::parse_byte_or_range(parser)
