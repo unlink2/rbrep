@@ -14,6 +14,9 @@ pub struct Config {
 
     #[arg(long, default_value_t = false)]
     pub dbg_expr_tree: bool,
+
+    #[arg(long, short)]
+    pub space: Option<u32>,
 }
 
 impl Config {
