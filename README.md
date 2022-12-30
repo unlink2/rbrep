@@ -33,6 +33,7 @@ The following options are available as of now:
 - A string (e.g. "a string") will match an exact string
 - A range (e.g. 1a-20) will match the range from n..m
 - A group will match the first valid item contained in it (e.g. (aabbaa-bb))
+- A group and also be matched using a logical and (e.g. &(aabb))
 - A bitwise and (e.g. &A1)
 - A not operator (e.g. !31)
 - Any expression can be multiplied (e.g. aa*4)
