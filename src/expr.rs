@@ -83,33 +83,57 @@ impl ExprKind {
         self.len() == 0
     }
 
-    pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
+    pub fn is_match<F>(&self, buffer: &[u8], f: &mut F) -> Option<usize>
+    where
+        F: FnMut(ExprOutput),
+    {
+        let first = buffer.first()?;
         match self {
             ExprKind::Byte { value } => {
-                if buffer.first()? == value {
+                if first == value {
+                    f(ExprOutput::new(*first, true));
                     Some(self.len())
                 } else {
                     None
                 }
             }
-            ExprKind::Any => Some(self.len()),
-            ExprKind::Group { nodes } => Expr::match_any(nodes, buffer),
+            ExprKind::Any => {
+                f(ExprOutput::new(*first, false));
+                Some(self.len())
+            }
+            ExprKind::Group { nodes } => Expr::match_any(nodes, buffer, f),
             ExprKind::String { value } => {
                 // compare to literal string
                 if buffer[0..self.len()] == *value.as_bytes() {
+                    buffer[0..self.len()]
+                        .iter()
+                        .for_each(|b| f(ExprOutput::new(*b, true)));
                     Some(self.len())
                 } else {
                     None
                 }
             }
             ExprKind::Range { from, to } => {
-                if (*from..*to).contains(buffer.first()?) {
+                if (*from..*to).contains(first) {
+                    f(ExprOutput::new(*first, true));
                     Some(self.len())
                 } else {
                     None
                 }
             }
         }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ExprOutput {
+    pub highlight: bool,
+    pub value: u8,
+}
+
+impl ExprOutput {
+    pub fn new(value: u8, highlight: bool) -> Self {
+        Self { highlight, value }
     }
 }
 
@@ -263,25 +287,33 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn is_match(&self, buffer: &[u8]) -> Option<usize> {
+    pub fn is_match<F>(&self, buffer: &[u8], f: &mut F) -> Option<usize>
+    where
+        F: FnMut(ExprOutput),
+    {
         let mut total = 0;
 
         for _ in 0..self.mul {
-            total += self.kind.is_match(&buffer[total..])?
+            total += self.kind.is_match(&buffer[total..], f)?
         }
         Some(total)
     }
 
     // match all
     // the buffer should match the lenght of the expr
-    fn match_all(expr: &ExprBranch, buffer: &[u8]) -> Option<usize> {
+    // the f callback gets called for each successful matched byte
+    // such a call does not mean that the overall match was successful though!
+    fn match_all<F>(expr: &ExprBranch, buffer: &[u8], f: &mut F) -> Option<usize>
+    where
+        F: FnMut(ExprOutput),
+    {
         if buffer.len() < Expr::len(expr) {
             return None;
         }
 
         let mut total = 0;
         for e in expr {
-            match e.is_match(&buffer[total..]) {
+            match e.is_match(&buffer[total..], f) {
                 Some(amount) => total += amount,
                 // no match => return
                 _ => return None,
@@ -293,7 +325,10 @@ impl Expr {
 
     // match any
     // matches any of the group and if it ends up matching, returns
-    fn match_any(expr: &ExprBranch, buffer: &[u8]) -> Option<usize> {
+    fn match_any<F>(expr: &ExprBranch, buffer: &[u8], f: &mut F) -> Option<usize>
+    where
+        F: FnMut(ExprOutput),
+    {
         // find the shortest lenght in all nodes
         // this is the lenght we will at least require at this stage
         if buffer.len() < expr.iter().fold(0, |i, n| usize::min(n.kind.len(), i)) {
@@ -301,7 +336,7 @@ impl Expr {
         }
 
         for e in expr {
-            if let Some(amount) = e.is_match(buffer) {
+            if let Some(amount) = e.is_match(buffer, f) {
                 return Some(amount);
             }
         }
@@ -326,6 +361,8 @@ impl Expr {
         // read initial buffer
         let res = i.read_exact(&mut buffer);
 
+        let mut output = vec![];
+
         // if the result was an error of Eof
         // there can never be a match
         match res {
@@ -334,9 +371,10 @@ impl Expr {
         }
 
         loop {
+            output.clear();
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            if Self::match_all(expr, &buffer).is_some() {
+            if Self::match_all(expr, &buffer, &mut |out| output.push(out)).is_some() {
                 if first_in_file {
                     writeln!(o, "{}", style(name).magenta())?;
                     first_in_file = false;
@@ -344,8 +382,12 @@ impl Expr {
 
                 // print current buffer if match
                 write!(o, "{:08x}\t", style(total).green())?;
-                for b in &buffer {
-                    write!(o, "{:02x}", style(b).red())?;
+                for b in output.iter() {
+                    if !b.highlight {
+                        write!(o, "{:02x}", style(b.value))?;
+                    } else {
+                        write!(o, "{:02x}", style(b.value).red())?;
+                    }
                 }
                 writeln!(o)?;
                 // matches += 1;
