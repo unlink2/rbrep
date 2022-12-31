@@ -444,23 +444,35 @@ impl Expr {
             // to check all possible combinations
             if Self::match_all(expr, &buffer, &mut |out| output.push(out)).is_some() {
                 if first_in_file {
-                    writeln!(o, "{}", style(name).magenta())?;
+                    if CFG.pretty {
+                        writeln!(o, "{}", style(name).magenta())?;
+                    } else {
+                        writeln!(o, "{}", name)?;
+                    }
                     first_in_file = false;
                 }
 
                 // print current buffer if match
                 // and count is not set
                 if !CFG.count {
-                    write!(o, "{:08x}\t", style(total).green())?;
+                    if CFG.pretty {
+                        write!(o, "{:08x}\t", style(total).green())?;
+                    } else {
+                        write!(o, "{:08x}\t", total)?;
+                    }
                     for (i, b) in output.iter().enumerate() {
                         if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
                             write!(o, " ")?;
                         }
 
-                        if !b.highlight {
-                            write!(o, "{:02x}", style(b.value))?;
+                        if CFG.pretty {
+                            if !b.highlight {
+                                write!(o, "{:02x}", style(b.value))?;
+                            } else {
+                                write!(o, "{:02x}", style(b.value).red())?;
+                            }
                         } else {
-                            write!(o, "{:02x}", style(b.value).red())?;
+                            write!(o, "{:02x}", b.value)?;
                         }
                     }
                     writeln!(o)?;
@@ -490,5 +502,26 @@ impl Expr {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn validate(expected: &str, expr: &str, input: &str) {
+        let input: Vec<u8> = input.bytes().collect();
+        let mut output = Vec::new();
+        let expr = Expr::tree_from(&expr).unwrap();
+        Expr::apply(&expr, &mut input.as_slice(), &mut output, "stdin").unwrap();
+
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(expected, &output);
+    }
+
+    #[test]
+    fn values() {
+        validate("stdin\n00000000\t30\n", "30", "01");
+        validate("stdin\n00000001\t31\n", "31", "01");
     }
 }
