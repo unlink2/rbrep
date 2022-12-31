@@ -1,4 +1,5 @@
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, CommandFactory, Parser};
+use clap_complete::{generate, Generator, Shell};
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -27,6 +28,9 @@ pub struct Config {
 
     #[arg(long, short = 'n')]
     pub stop_after: Option<usize>,
+
+    #[clap(long, value_name = "SHELL")]
+    pub completions: Option<Shell>,
 }
 
 impl Config {
@@ -39,4 +43,13 @@ impl Config {
     pub fn new() -> Self {
         Self::parse()
     }
+}
+
+pub fn generate_completion<G: Generator>(gen: G) {
+    generate(
+        gen,
+        &mut Config::command(),
+        Config::command().get_name(),
+        &mut std::io::stdout(),
+    );
 }
