@@ -97,15 +97,16 @@ impl ExprKind {
         self.len() == 0
     }
 
-    pub fn is_match<F>(&self, buffer: &[u8], f: &mut F) -> Option<usize>
+    pub fn is_match<IF, OF>(&self, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
     where
-        F: FnMut(ExprOutput),
+        IF: FnMut(usize) -> Option<u8>,
+        OF: FnMut(ExprOutput),
     {
-        let first = buffer.first()?;
+        let first = i(offset)?;
         match self {
             ExprKind::Byte { value } => {
-                if first == value {
-                    f(ExprOutput::new(*first, true));
+                if first == *value {
+                    o(ExprOutput::new(first, true));
                     Some(self.len())
                 } else {
                     None
@@ -113,7 +114,7 @@ impl ExprKind {
             }
             ExprKind::And { value } => {
                 if first & value != 0 {
-                    f(ExprOutput::new(*first, true));
+                    o(ExprOutput::new(first, true));
                     Some(self.len())
                 } else {
                     None
@@ -123,38 +124,37 @@ impl ExprKind {
                 // apply matcher to next function, but do not use the
                 // callback. Only if the parser returns an error, call callback
                 // for the next value
-                if expr.is_match(buffer, &mut no_output_cb).is_none() {
-                    f(ExprOutput::new(*first, true));
+                if expr.is_match(offset, i, &mut no_output_cb).is_none() {
+                    o(ExprOutput::new(first, true));
                     Some(self.len())
                 } else {
                     None
                 }
             }
             ExprKind::Any => {
-                f(ExprOutput::new(*first, false));
+                o(ExprOutput::new(first, false));
                 Some(self.len())
             }
             ExprKind::Group { nodes, and } => {
                 if *and {
-                    Expr::match_all(nodes, buffer, f)
+                    Expr::match_all(nodes, offset, i, o)
                 } else {
-                    Expr::match_any(nodes, buffer, f)
+                    Expr::match_any(nodes, offset, i, o)
                 }
             }
             ExprKind::String { value } => {
                 // compare to literal string
-                if buffer[0..self.len()] == *value.as_bytes() {
-                    buffer[0..self.len()]
-                        .iter()
-                        .for_each(|b| f(ExprOutput::new(*b, true)));
-                    Some(self.len())
-                } else {
-                    None
+                for (idx, b) in value.as_bytes().iter().enumerate() {
+                    if i(offset + idx)? != *b {
+                        return None;
+                    }
+                    o(ExprOutput::new(*b, true));
                 }
+                Some(self.len())
             }
             ExprKind::Range { from, to } => {
-                if (*from..*to).contains(first) {
-                    f(ExprOutput::new(*first, true));
+                if (*from..*to).contains(&first) {
+                    o(ExprOutput::new(first, true));
                     Some(self.len())
                 } else {
                     None
@@ -355,33 +355,34 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn is_match<F>(&self, buffer: &[u8], f: &mut F) -> Option<usize>
+    pub fn is_match<IF, OF>(&self, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
     where
-        F: FnMut(ExprOutput),
+        IF: FnMut(usize) -> Option<u8>,
+        OF: FnMut(ExprOutput),
     {
         let mut total = 0;
-
         for _ in 0..self.mul {
-            total += self.kind.is_match(&buffer[total..], f)?
+            total += self.kind.is_match(offset + total, i, o)?
         }
         Some(total)
     }
 
     // match all
     // the buffer should match the lenght of the expr
-    // the f callback gets called for each successful matched byte
+    // the o callback gets called for each successful matched byte
     // such a call does not mean that the overall match was successful though!
-    fn match_all<F>(expr: &ExprBranch, buffer: &[u8], f: &mut F) -> Option<usize>
+    // the i callback gets called with the byte offset the matcher is attempting to read
+    // i should return None if the read failed
+    // and a byte value if the read was ok
+    // i can be implemented in any way required to provide data to the matcher
+    fn match_all<IF, OF>(expr: &ExprBranch, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
     where
-        F: FnMut(ExprOutput),
+        IF: FnMut(usize) -> Option<u8>,
+        OF: FnMut(ExprOutput),
     {
-        if buffer.len() < Expr::len(expr) {
-            return None;
-        }
-
         let mut total = 0;
         for e in expr {
-            match e.is_match(&buffer[total..], f) {
+            match e.is_match(offset + total, i, o) {
                 Some(amount) => total += amount,
                 // no match => return
                 _ => return None,
@@ -393,18 +394,13 @@ impl Expr {
 
     // match any
     // matches any of the group and if it ends up matching, returns
-    fn match_any<F>(expr: &ExprBranch, buffer: &[u8], f: &mut F) -> Option<usize>
+    fn match_any<IF, OF>(expr: &ExprBranch, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
     where
-        F: FnMut(ExprOutput),
+        IF: FnMut(usize) -> Option<u8>,
+        OF: FnMut(ExprOutput),
     {
-        // find the shortest lenght in all nodes
-        // this is the lenght we will at least require at this stage
-        if buffer.len() < expr.iter().fold(0, |i, n| usize::min(n.kind.len(), i)) {
-            return None;
-        }
-
         for e in expr {
-            if let Some(amount) = e.is_match(buffer, f) {
+            if let Some(amount) = e.is_match(offset, i, o) {
                 return Some(amount);
             }
         }
@@ -420,29 +416,48 @@ impl Expr {
         name: &str,
     ) -> anyhow::Result<()> {
         let mut next = [0; 1];
-        let mut buffer = vec![0; Expr::len(expr)];
+        let mut buffer = Vec::with_capacity(expr.len());
 
         let mut total = 0;
         let mut first_in_file = true;
         let mut matches = 0;
 
-        // read initial buffer
-        let res = i.read_exact(&mut buffer);
-
         let mut output = vec![];
 
-        // if the result was an error of Eof
-        // there can never be a match
+        // read initial byte
+        let res = i.read_exact(&mut next);
+        // same here, if it is eof
+        // we have simply reached the onf of the file!
         match res {
             Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             _ => res?,
         }
 
+        // add next to vec
+        buffer.push(next[0]);
         loop {
             output.clear();
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            if Self::match_all(expr, &buffer, &mut |out| output.push(out)).is_some() {
+            if Self::match_all(
+                expr,
+                0,
+                &mut |offset| {
+                    if let Some(val) = buffer.get(offset) {
+                        Some(*val)
+                    } else {
+                        if i.read_exact(&mut next).is_err() {
+                            None
+                        } else {
+                            buffer.push(next[0]);
+                            Some(next[0])
+                        }
+                    }
+                },
+                &mut |out| output.push(out),
+            )
+            .is_some()
+            {
                 if first_in_file {
                     if CFG.pretty {
                         writeln!(o, "{}", style(name).magenta())?;
