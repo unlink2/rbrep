@@ -2,7 +2,7 @@ use rbrep::exec;
 
 fn main() {
     if let Err(error) = exec() {
-        println!("{}", error);
+        println!("{error}");
     }
 }
 

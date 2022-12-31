@@ -445,13 +445,11 @@ impl Expr {
                 &mut |offset| {
                     if let Some(val) = buffer.get(offset) {
                         Some(*val)
+                    } else if i.read_exact(&mut next).is_err() {
+                        None
                     } else {
-                        if i.read_exact(&mut next).is_err() {
-                            None
-                        } else {
-                            buffer.push(next[0]);
-                            Some(next[0])
-                        }
+                        buffer.push(next[0]);
+                        Some(next[0])
                     }
                 },
                 &mut |out| output.push(out),
@@ -462,7 +460,7 @@ impl Expr {
                     if CFG.pretty {
                         writeln!(o, "{}", style(name).magenta())?;
                     } else {
-                        writeln!(o, "{}", name)?;
+                        writeln!(o, "{name}")?;
                     }
                     first_in_file = false;
                 }
@@ -473,7 +471,7 @@ impl Expr {
                     if CFG.pretty {
                         write!(o, "{:08x}\t", style(total).green())?;
                     } else {
-                        write!(o, "{:08x}\t", total)?;
+                        write!(o, "{total:08x}\t")?;
                     }
                     for (i, b) in output.iter().enumerate() {
                         if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
