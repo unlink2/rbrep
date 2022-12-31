@@ -470,7 +470,7 @@ impl Expr {
         buffer.push(next[0]);
         loop {
             if let Some(stop_after) = CFG.stop_after {
-                if total >= stop_after {
+                if matches >= stop_after {
                     break;
                 }
             }
