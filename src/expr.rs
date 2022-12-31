@@ -180,6 +180,12 @@ impl ExprOutput {
 pub struct Expr {
     pub kind: ExprKind,
     pub mul: u32,
+
+    // match until no more matches are found
+    pub many: bool,
+
+    // this will not cause a failure, even if it does not match
+    pub optional: bool,
 }
 
 impl Display for Expr {
@@ -190,7 +196,12 @@ impl Display for Expr {
 
 impl Expr {
     pub fn new(kind: ExprKind, mul: u32) -> Self {
-        Self { kind, mul }
+        Self {
+            kind,
+            mul,
+            many: false,
+            optional: false,
+        }
     }
 
     pub fn tree_from(src: &str) -> RbrepResult<ExprBranch> {
@@ -261,7 +272,17 @@ impl Expr {
             .parse::<u32>()
             .map_err(|_| Error::BadSyntax(parser.pos))?;
 
-        expr.mul = num;
+        if num == 0 {
+            expr.optional = true;
+            expr.mul = 1;
+        } else {
+            expr.mul = num;
+        }
+
+        // if + follows mul set many flag
+        if parser.adv_if_trim('+') {
+            expr.many = true;
+        }
 
         // ; is required after mul
         if !parser.adv_if_trim(';') {
@@ -362,7 +383,19 @@ impl Expr {
     {
         let mut total = 0;
         for _ in 0..self.mul {
-            total += self.kind.is_match(offset + total, i, o)?
+            let result = self.kind.is_match(offset + total, i, o);
+            let amount = if result.is_none() && self.optional {
+                0
+            } else {
+                result?
+            };
+
+            total += amount;
+
+            // call again if many flag is set and we had a result
+            if !result.is_none() && self.many {
+                total += self.is_match(offset + amount, i, o).unwrap_or(0);
+            }
         }
         Some(total)
     }
@@ -439,7 +472,7 @@ impl Expr {
             output.clear();
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            if Self::match_all(
+            if let Some(amount) = Self::match_all(
                 expr,
                 0,
                 &mut |offset| {
@@ -453,44 +486,44 @@ impl Expr {
                     }
                 },
                 &mut |out| output.push(out),
-            )
-            .is_some()
-            {
-                if first_in_file {
-                    if CFG.pretty {
-                        writeln!(o, "{}", style(name).magenta())?;
-                    } else {
-                        writeln!(o, "{name}")?;
-                    }
-                    first_in_file = false;
-                }
-
-                // print current buffer if match
-                // and count is not set
-                if !CFG.count {
-                    if CFG.pretty {
-                        write!(o, "{:08x}\t", style(total).green())?;
-                    } else {
-                        write!(o, "{total:08x}\t")?;
-                    }
-                    for (i, b) in output.iter().enumerate() {
-                        if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
-                            write!(o, " ")?;
-                        }
-
+            ) {
+                if amount > 0 {
+                    if first_in_file {
                         if CFG.pretty {
-                            if !b.highlight {
-                                write!(o, "{:02x}", style(b.value))?;
-                            } else {
-                                write!(o, "{:02x}", style(b.value).red())?;
-                            }
+                            writeln!(o, "{}", style(name).magenta())?;
                         } else {
-                            write!(o, "{:02x}", b.value)?;
+                            writeln!(o, "{name}")?;
                         }
+                        first_in_file = false;
                     }
-                    writeln!(o)?;
+
+                    // print current buffer if match
+                    // and count is not set
+                    if !CFG.count {
+                        if CFG.pretty {
+                            write!(o, "{:08x}\t", style(total).green())?;
+                        } else {
+                            write!(o, "{total:08x}\t")?;
+                        }
+                        for (i, b) in output.iter().enumerate() {
+                            if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
+                                write!(o, " ")?;
+                            }
+
+                            if CFG.pretty {
+                                if !b.highlight {
+                                    write!(o, "{:02x}", style(b.value))?;
+                                } else {
+                                    write!(o, "{:02x}", style(b.value).red())?;
+                                }
+                            } else {
+                                write!(o, "{:02x}", b.value)?;
+                            }
+                        }
+                        writeln!(o)?;
+                    }
+                    matches += 1;
                 }
-                matches += 1;
             }
 
             // remove fisrt
@@ -593,5 +626,15 @@ mod test {
             "3132(3334)41-43",
             "0123B0124A",
         );
+    }
+
+    #[test]
+    fn optional() {
+        validate("stdin\n00000000\t30\n00000001\t3031\n", "3031*0;", "0012")
+    }
+
+    #[test]
+    fn many() {
+        validate("stdin\n00000002\t3031313132\n", "3031*1+;32", "0001112");
     }
 }
