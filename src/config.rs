@@ -24,6 +24,9 @@ pub struct Config {
 
     #[arg(long, short)]
     pub count: bool,
+
+    #[arg(long, short = 'n')]
+    pub stop_after: Option<usize>,
 }
 
 impl Config {

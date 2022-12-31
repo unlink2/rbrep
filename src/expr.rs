@@ -469,6 +469,12 @@ impl Expr {
         // add next to vec
         buffer.push(next[0]);
         loop {
+            if let Some(stop_after) = CFG.stop_after {
+                if total >= stop_after {
+                    break;
+                }
+            }
+
             output.clear();
             // no matter what, we always advance a single byte
             // to check all possible combinations
