@@ -524,4 +524,52 @@ mod test {
         validate("stdin\n00000000\t30\n", "30", "01");
         validate("stdin\n00000001\t31\n", "31", "01");
     }
+
+    #[test]
+    fn any() {
+        validate("stdin\n00000000\t30\n00000001\t31\n", "??", "01");
+    }
+
+    #[test]
+    fn string() {
+        validate("stdin\n00000002\t48656c6c6f\n", "\"Hello\"", "12Hello34");
+    }
+
+    #[test]
+    fn range() {
+        validate("stdin\n00000000\t30\n00000001\t31\n", "30-32", "01234");
+    }
+
+    #[test]
+    fn or_group() {
+        validate("stdin\n00000000\t30\n00000002\t32\n", "(3032)", "01234");
+    }
+
+    #[test]
+    fn and_group() {
+        validate("stdin\n00000000\t3032\n", "&(3032)", "02134");
+    }
+
+    #[test]
+    fn and() {
+        validate(
+            "stdin\n00000000\t30\n00000001\t31\n00000002\t32\n00000003\t33\n00000004\t34\n",
+            "&30",
+            "01234ABC",
+        );
+    }
+
+    #[test]
+    fn not() {
+        validate(
+            "stdin\n00000005\t41\n00000006\t42\n00000007\t43\n",
+            "!&30",
+            "01234ABC",
+        );
+    }
+
+    #[test]
+    fn mul() {
+        validate("stdin\n00000002\t3131\n", "31*2;", "00112233");
+    }
 }
