@@ -37,6 +37,9 @@ The following options are available as of now:
 - A bitwise and (e.g. &A1)
 - A not operator (e.g. !31)
 - Any expression can be multiplied (e.g. aa*4)
+- An expression can be made optional by multiplying with 0 (e.g. aa*0;)
+- An expression can occur 1 to n times by adding a + (e.g. aa*1+;)
+- Optional and 1 to n can be combined (e.g. aa*0+;)
 
 ## License
 
