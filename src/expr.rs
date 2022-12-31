@@ -102,6 +102,7 @@ impl ExprKind {
         self.len() == 0
     }
 
+    // FIXME return Result<Option<Vec<ExprOutput>>>, change IF to return Result and remove OF
     pub fn is_match<IF, OF>(&self, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
     where
         IF: FnMut(usize) -> Option<u8>,
