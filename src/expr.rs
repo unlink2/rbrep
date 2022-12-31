@@ -25,7 +25,12 @@ pub fn exec() -> anyhow::Result<()> {
         // open each file and apply parsed tree
         for path in &CFG.paths {
             let f = File::open(path)?;
-            Expr::apply(&expr, &mut BufReader::new(f), &mut std::io::stdout(), path)?
+            Expr::apply(
+                &expr,
+                &mut BufReader::new(f),
+                &mut std::io::stdout(),
+                path.to_str().unwrap_or(""),
+            )?
         }
         Ok(())
     } else {

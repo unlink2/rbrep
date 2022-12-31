@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{ArgAction, CommandFactory, Parser};
 use clap_complete::{generate, Generator, Shell};
 use lazy_static::lazy_static;
@@ -11,7 +13,7 @@ lazy_static! {
 pub struct Config {
     pub expr: String,
 
-    pub paths: Vec<String>,
+    pub paths: Vec<PathBuf>,
 
     #[arg(long, default_value_t = false)]
     pub dbg_expr_tree: bool,
