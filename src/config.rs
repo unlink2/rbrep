@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -19,7 +19,7 @@ pub struct Config {
     pub space: u32,
 
     // FIXME do not check pretty flag every time we write...
-    #[arg(long, short, default_value_t = true)]
+    #[arg(long="no-pretty", short, default_value_t = true, action = ArgAction::SetFalse)]
     pub pretty: bool,
 
     #[arg(long, short)]
