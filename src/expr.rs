@@ -393,7 +393,7 @@ impl Expr {
             total += amount;
 
             // call again if many flag is set and we had a result
-            if !result.is_none() && self.many {
+            if result.is_some() && self.many {
                 total += self.is_match(offset + amount, i, o).unwrap_or(0);
             }
         }
@@ -636,5 +636,11 @@ mod test {
     #[test]
     fn many() {
         validate("stdin\n00000002\t3031313132\n", "3031*1+;32", "0001112");
+    }
+
+    #[test]
+    fn many_optional() {
+        validate("stdin\n00000002\t3032\n", "3031*0+;32", "0002");
+        validate("stdin\n00000002\t3031313132\n", "3031*0+;32", "0001112");
     }
 }
