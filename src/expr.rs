@@ -5,7 +5,11 @@ use std::{
     io::{BufReader, Read, Write},
 };
 
-use crate::{Error, Parser, RbrepResult, CFG};
+use crate::{
+    input::{FileBufferInput, MatchInput},
+    output::{ExprOutData, ExprOutput, MatchOutput},
+    Error, Parser, RbrepResult, CFG,
+};
 
 pub type ExprBranch = Vec<Expr>;
 
@@ -100,23 +104,23 @@ impl ExprKind {
         self.len() == 0
     }
 
-    // FIXME return Result<Vec<ExprOutput>>, change IF to return Result and remove OF
     // An empty vec means no match was found (same as None right now)
-    pub fn apply_match<IF>(&self, read: &mut IF, res: &mut ExprMatchResponse) -> RbrepResult<usize>
+    pub fn apply_match<IF, OF>(&self, read: &mut IF, res: &mut OF) -> RbrepResult<usize>
     where
-        IF: FnMut(usize) -> RbrepResult<u8>,
+        IF: MatchInput,
+        OF: MatchOutput,
     {
         let offset = res.len();
-        let first = read(offset)?;
+        let first = read.read(offset)?;
         match self {
             ExprKind::Byte { value } => {
                 if first == *value {
-                    res.push(ExprOutput::new(first, true));
+                    res.push(ExprOutData::new(first, true));
                 }
             }
             ExprKind::And { value } => {
                 if first & value != 0 {
-                    res.push(ExprOutput::new(first, true));
+                    res.push(ExprOutData::new(first, true));
                 }
             }
             ExprKind::Not { expr } => {
@@ -124,11 +128,11 @@ impl ExprKind {
                 // callback. Only if the parser returns an error, call callback
                 // for the next value
                 if expr.apply_match(read, &mut res.clone())? == 0 {
-                    res.push(ExprOutput::new(first, true));
+                    res.push(ExprOutData::new(first, true));
                 }
             }
             ExprKind::Any => {
-                res.push(ExprOutput::new(first, false));
+                res.push(ExprOutData::new(first, false));
             }
             ExprKind::Group { nodes, and } => {
                 if *and {
@@ -143,35 +147,21 @@ impl ExprKind {
             ExprKind::String { value } => {
                 // compare to literal string
                 for (idx, b) in value.as_bytes().iter().enumerate() {
-                    if read(offset + idx)? != *b {
+                    if read.read(offset + idx)? != *b {
                         break;
                     }
-                    res.push(ExprOutput::new(*b, true));
+                    res.push(ExprOutData::new(*b, true));
                 }
             }
             ExprKind::Range { from, to } => {
                 if (*from..*to).contains(&first) {
-                    res.push(ExprOutput::new(first, true));
+                    res.push(ExprOutData::new(first, true));
                 }
             }
         }
         Ok(res.len() - offset)
     }
 }
-
-#[derive(Clone, Default, Debug)]
-pub struct ExprOutput {
-    pub highlight: bool,
-    pub value: u8,
-}
-
-impl ExprOutput {
-    pub fn new(value: u8, highlight: bool) -> Self {
-        Self { highlight, value }
-    }
-}
-
-pub type ExprMatchResponse = Vec<ExprOutput>;
 
 #[derive(Clone)]
 pub struct Expr {
@@ -373,9 +363,10 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn apply_match<IF>(&self, i: &mut IF, res: &mut ExprMatchResponse) -> RbrepResult<usize>
+    pub fn apply_match<IF, OF>(&self, i: &mut IF, res: &mut OF) -> RbrepResult<usize>
     where
-        IF: FnMut(usize) -> RbrepResult<u8>,
+        IF: MatchInput,
+        OF: MatchOutput,
     {
         let start = res.len();
         for _ in 0..self.mul {
@@ -400,13 +391,14 @@ impl Expr {
         Ok(res.len() - start)
     }
 
-    pub fn start_match<IF>(expr: &ExprBranch, i: &mut IF) -> RbrepResult<ExprMatchResponse>
+    pub fn start_match<IF, OF>(expr: &ExprBranch, i: &mut IF) -> RbrepResult<OF>
     where
-        IF: FnMut(usize) -> RbrepResult<u8>,
+        IF: MatchInput,
+        OF: MatchOutput,
     {
-        let mut res = ExprMatchResponse::default();
+        let mut res = OF::default();
         if Self::match_all(expr, i, &mut res)? == 0 {
-            return Ok(ExprMatchResponse::default());
+            return Ok(OF::default());
         }
 
         Ok(res)
@@ -418,13 +410,10 @@ impl Expr {
     // i should return None if the read failed
     // and a byte value if the read was ok
     // i can be implemented in any way required to provide data to the matcher
-    fn match_all<IF>(
-        expr: &ExprBranch,
-        i: &mut IF,
-        res: &mut ExprMatchResponse,
-    ) -> RbrepResult<usize>
+    fn match_all<IF, OF>(expr: &ExprBranch, i: &mut IF, res: &mut OF) -> RbrepResult<usize>
     where
-        IF: FnMut(usize) -> RbrepResult<u8>,
+        IF: MatchInput,
+        OF: MatchOutput,
     {
         let start = res.len();
         for e in expr {
@@ -440,13 +429,10 @@ impl Expr {
 
     // match any
     // matches any of the group and if it ends up matching, returns
-    fn match_any<IF>(
-        expr: &ExprBranch,
-        i: &mut IF,
-        res: &mut ExprMatchResponse,
-    ) -> RbrepResult<usize>
+    fn match_any<IF, OF>(expr: &ExprBranch, i: &mut IF, res: &mut OF) -> RbrepResult<usize>
     where
-        IF: FnMut(usize) -> RbrepResult<u8>,
+        IF: MatchInput,
+        OF: MatchOutput,
     {
         let start = res.len();
         for e in expr {
@@ -466,24 +452,15 @@ impl Expr {
         o: &mut dyn Write,
         name: &str,
     ) -> anyhow::Result<()> {
-        let mut next = [0; 1];
-        let mut buffer = Vec::with_capacity(expr.len());
+        let mut input = FileBufferInput::new(i);
 
         let mut total = 0;
         let mut first_in_file = true;
         let mut matches = 0;
 
-        // read initial byte
-        let res = i.read_exact(&mut next);
-        // same here, if it is eof
-        // we have simply reached the onf of the file!
-        match res {
-            Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
-            _ => res?,
-        }
+        // read firt byte
+        input.read_next()?;
 
-        // add next to vec
-        buffer.push(next[0]);
         loop {
             if let Some(stop_after) = CFG.stop_after {
                 if matches >= stop_after {
@@ -493,17 +470,8 @@ impl Expr {
 
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            let output = Self::start_match(expr, &mut |offset| {
-                if let Some(val) = buffer.get(offset) {
-                    Ok(*val)
-                } else if i.read_exact(&mut next).is_err() {
-                    // FIXME this may not be correct
-                    Err(Error::EndOfFile)
-                } else {
-                    buffer.push(next[0]);
-                    Ok(next[0])
-                }
-            })?;
+            let output: ExprOutput = Self::start_match(expr, &mut input)?;
+
             if !output.is_empty() {
                 if first_in_file {
                     if CFG.pretty {
@@ -522,7 +490,7 @@ impl Expr {
                     } else {
                         write!(o, "{total:08x}\t")?;
                     }
-                    for (i, b) in output.iter().enumerate() {
+                    for (i, b) in output.as_slice().iter().enumerate() {
                         if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
                             write!(o, " ")?;
                         }
@@ -542,20 +510,13 @@ impl Expr {
                 matches += 1;
             }
 
-            // remove fisrt
-            buffer.remove(0);
-
-            // read a new byte
-            let res = i.read_exact(&mut next);
-            // same here, if it is eof
-            // we have simply reached the onf of the file!
-            match res {
-                Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
-                _ => res?,
+            // remove 1 byte from buffer
+            input.remove(0);
+            // read next
+            if input.read_next()? == 0 {
+                break;
             }
 
-            // add next to vec
-            buffer.push(next[0]);
             total += 1;
         }
 
