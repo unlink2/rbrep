@@ -7,6 +7,10 @@ pub enum Error {
     #[error("Syntax error")]
     BadSyntax(usize),
     #[error("Unknown error")]
+    EndOfFile,
+    #[error("Unknown error")]
+    Io,
+    #[error("Unknown error")]
     Unknown,
 
     #[error(transparent)]

@@ -16,3 +16,4 @@ clap_complete = "4.0.7"
 console = "0.15.3"
 lazy_static = "1.4.0"
 thiserror = "1.0.38"
+tinyvec = { version = "1.6.0", features = ["alloc"] }
