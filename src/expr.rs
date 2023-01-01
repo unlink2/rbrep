@@ -9,8 +9,6 @@ use crate::{Error, Parser, RbrepResult, CFG};
 
 pub type ExprBranch = Vec<Expr>;
 
-fn no_output_cb(_: ExprOutput) {}
-
 pub fn exec() -> anyhow::Result<()> {
     // the tree to apply
     let expr = Expr::tree_from(&CFG.expr)?;
@@ -102,75 +100,63 @@ impl ExprKind {
         self.len() == 0
     }
 
-    // FIXME return Result<Option<Vec<ExprOutput>>>, change IF to return Result and remove OF
-    pub fn is_match<IF, OF>(&self, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
+    // FIXME return Result<Vec<ExprOutput>>, change IF to return Result and remove OF
+    // An empty vec means no match was found (same as None right now)
+    pub fn is_match<IF>(&self, offset: usize, read: &mut IF) -> RbrepResult<ExprMatchResponse>
     where
-        IF: FnMut(usize) -> Option<u8>,
-        OF: FnMut(ExprOutput),
+        IF: FnMut(usize) -> RbrepResult<u8>,
     {
-        let first = i(offset)?;
+        let mut res = ExprMatchResponse::default();
+        let first = read(offset)?;
         match self {
             ExprKind::Byte { value } => {
                 if first == *value {
-                    o(ExprOutput::new(first, true));
-                    Some(self.len())
-                } else {
-                    None
+                    res.push(ExprOutput::new(first, true));
                 }
             }
             ExprKind::And { value } => {
                 if first & value != 0 {
-                    o(ExprOutput::new(first, true));
-                    Some(self.len())
-                } else {
-                    None
+                    res.push(ExprOutput::new(first, true));
                 }
             }
             ExprKind::Not { expr } => {
                 // apply matcher to next function, but do not use the
                 // callback. Only if the parser returns an error, call callback
                 // for the next value
-                if expr.is_match(offset, i, &mut no_output_cb).is_none() {
-                    o(ExprOutput::new(first, true));
-                    Some(self.len())
-                } else {
-                    None
+                if expr.is_match(offset, read)?.is_empty() {
+                    res.push(ExprOutput::new(first, true));
                 }
             }
             ExprKind::Any => {
-                o(ExprOutput::new(first, false));
-                Some(self.len())
+                res.push(ExprOutput::new(first, false));
             }
             ExprKind::Group { nodes, and } => {
                 if *and {
-                    Expr::match_all(nodes, offset, i, o)
+                    res.append(&mut Expr::match_all(nodes, offset, read)?);
                 } else {
-                    Expr::match_any(nodes, offset, i, o)
+                    res.append(&mut Expr::match_any(nodes, offset, read)?);
                 }
             }
             ExprKind::String { value } => {
                 // compare to literal string
                 for (idx, b) in value.as_bytes().iter().enumerate() {
-                    if i(offset + idx)? != *b {
-                        return None;
+                    if read(offset + idx)? != *b {
+                        break;
                     }
-                    o(ExprOutput::new(*b, true));
+                    res.push(ExprOutput::new(*b, true));
                 }
-                Some(self.len())
             }
             ExprKind::Range { from, to } => {
                 if (*from..*to).contains(&first) {
-                    o(ExprOutput::new(first, true));
-                    Some(self.len())
-                } else {
-                    None
+                    res.push(ExprOutput::new(first, true));
                 }
             }
         }
+        Ok(res)
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ExprOutput {
     pub highlight: bool,
     pub value: u8,
@@ -181,6 +167,9 @@ impl ExprOutput {
         Self { highlight, value }
     }
 }
+
+// FIXME change back to a larger buffer when improving performance
+pub type ExprMatchResponse = tinyvec::TinyVec<[ExprOutput; 1]>;
 
 #[derive(Clone)]
 pub struct Expr {
@@ -382,69 +371,79 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn is_match<IF, OF>(&self, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
+    pub fn is_match<IF>(&self, offset: usize, i: &mut IF) -> RbrepResult<ExprMatchResponse>
     where
-        IF: FnMut(usize) -> Option<u8>,
-        OF: FnMut(ExprOutput),
+        IF: FnMut(usize) -> RbrepResult<u8>,
     {
+        let mut res = ExprMatchResponse::new();
         let mut total = 0;
         for _ in 0..self.mul {
-            let result = self.kind.is_match(offset + total, i, o);
-            let amount = if result.is_none() && self.optional {
+            let mut result = self.kind.is_match(offset + total, i)?;
+            let amount = if result.is_empty() && self.optional {
                 0
+            } else if result.is_empty() {
+                return Ok(ExprMatchResponse::default());
             } else {
-                result?
+                result.len()
             };
+            res.append(&mut result);
 
             total += amount;
 
             // call again if many flag is set and we had a result
-            if result.is_some() && self.many {
-                total += self.is_match(offset + amount, i, o).unwrap_or(0);
+            if (amount > 0 || self.optional) && self.many {
+                loop {
+                    let mut result = self.kind.is_match(offset + total, i)?;
+                    if result.is_empty() {
+                        break;
+                    }
+                    total += result.len();
+                    res.append(&mut result);
+                }
             }
         }
-        Some(total)
+        Ok(res)
     }
 
     // match all
     // the buffer should match the lenght of the expr
-    // the o callback gets called for each successful matched byte
-    // such a call does not mean that the overall match was successful though!
     // the i callback gets called with the byte offset the matcher is attempting to read
     // i should return None if the read failed
     // and a byte value if the read was ok
     // i can be implemented in any way required to provide data to the matcher
-    fn match_all<IF, OF>(expr: &ExprBranch, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
+    fn match_all<IF>(expr: &ExprBranch, offset: usize, i: &mut IF) -> RbrepResult<ExprMatchResponse>
     where
-        IF: FnMut(usize) -> Option<u8>,
-        OF: FnMut(ExprOutput),
+        IF: FnMut(usize) -> RbrepResult<u8>,
     {
         let mut total = 0;
+        let mut res = ExprMatchResponse::default();
         for e in expr {
-            match e.is_match(offset + total, i, o) {
-                Some(amount) => total += amount,
-                // no match => return
-                _ => return None,
+            let mut result = e.is_match(offset + total, i)?;
+            total += result.len();
+            // no match => return empty
+            if result.is_empty() && !e.optional {
+                return Ok(ExprMatchResponse::default());
             }
+            res.append(&mut result);
         }
         // got to end without fail => match found!
-        Some(total)
+        Ok(res)
     }
 
     // match any
     // matches any of the group and if it ends up matching, returns
-    fn match_any<IF, OF>(expr: &ExprBranch, offset: usize, i: &mut IF, o: &mut OF) -> Option<usize>
+    fn match_any<IF>(expr: &ExprBranch, offset: usize, i: &mut IF) -> RbrepResult<ExprMatchResponse>
     where
-        IF: FnMut(usize) -> Option<u8>,
-        OF: FnMut(ExprOutput),
+        IF: FnMut(usize) -> RbrepResult<u8>,
     {
         for e in expr {
-            if let Some(amount) = e.is_match(offset, i, o) {
-                return Some(amount);
+            let res = e.is_match(offset, i)?;
+            if !res.is_empty() {
+                return Ok(res);
             }
         }
         // got to end without success => no match found!
-        None
+        Ok(ExprMatchResponse::default())
     }
 
     // here we read the data and manage the buffer
@@ -460,8 +459,6 @@ impl Expr {
         let mut total = 0;
         let mut first_in_file = true;
         let mut matches = 0;
-
-        let mut output = vec![];
 
         // read initial byte
         let res = i.read_exact(&mut next);
@@ -481,61 +478,55 @@ impl Expr {
                 }
             }
 
-            output.clear();
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            if let Some(amount) = Self::match_all(
-                expr,
-                0,
-                &mut |offset| {
-                    if let Some(val) = buffer.get(offset) {
-                        Some(*val)
-                    } else if i.read_exact(&mut next).is_err() {
-                        None
-                    } else {
-                        buffer.push(next[0]);
-                        Some(next[0])
-                    }
-                },
-                &mut |out| output.push(out),
-            ) {
-                if amount > 0 {
-                    if first_in_file {
-                        if CFG.pretty {
-                            writeln!(o, "{}", style(name).magenta())?;
-                        } else {
-                            writeln!(o, "{name}")?;
-                        }
-                        first_in_file = false;
-                    }
-
-                    // print current buffer if match
-                    // and count is not set
-                    if !CFG.count {
-                        if CFG.pretty {
-                            write!(o, "{:08x}\t", style(total).green())?;
-                        } else {
-                            write!(o, "{total:08x}\t")?;
-                        }
-                        for (i, b) in output.iter().enumerate() {
-                            if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
-                                write!(o, " ")?;
-                            }
-
-                            if CFG.pretty {
-                                if !b.highlight {
-                                    write!(o, "{:02x}", style(b.value))?;
-                                } else {
-                                    write!(o, "{:02x}", style(b.value).red())?;
-                                }
-                            } else {
-                                write!(o, "{:02x}", b.value)?;
-                            }
-                        }
-                        writeln!(o)?;
-                    }
-                    matches += 1;
+            let output = Self::match_all(expr, 0, &mut |offset| {
+                if let Some(val) = buffer.get(offset) {
+                    Ok(*val)
+                } else if i.read_exact(&mut next).is_err() {
+                    // FIXME this may not be correct
+                    Err(Error::EndOfFile)
+                } else {
+                    buffer.push(next[0]);
+                    Ok(next[0])
                 }
+            })?;
+            if !output.is_empty() {
+                if first_in_file {
+                    if CFG.pretty {
+                        writeln!(o, "{}", style(name).magenta())?;
+                    } else {
+                        writeln!(o, "{name}")?;
+                    }
+                    first_in_file = false;
+                }
+
+                // print current buffer if match
+                // and count is not set
+                if !CFG.count {
+                    if CFG.pretty {
+                        write!(o, "{:08x}\t", style(total).green())?;
+                    } else {
+                        write!(o, "{total:08x}\t")?;
+                    }
+                    for (i, b) in output.iter().enumerate() {
+                        if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
+                            write!(o, " ")?;
+                        }
+
+                        if CFG.pretty {
+                            if !b.highlight {
+                                write!(o, "{:02x}", style(b.value))?;
+                            } else {
+                                write!(o, "{:02x}", style(b.value).red())?;
+                            }
+                        } else {
+                            write!(o, "{:02x}", b.value)?;
+                        }
+                    }
+                    writeln!(o)?;
+                }
+                matches += 1;
             }
 
             // remove fisrt
