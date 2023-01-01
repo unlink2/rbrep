@@ -102,11 +102,11 @@ impl ExprKind {
 
     // FIXME return Result<Vec<ExprOutput>>, change IF to return Result and remove OF
     // An empty vec means no match was found (same as None right now)
-    pub fn is_match<IF>(&self, offset: usize, read: &mut IF) -> RbrepResult<ExprMatchResponse>
+    pub fn apply_match<IF>(&self, read: &mut IF, res: &mut ExprMatchResponse) -> RbrepResult<usize>
     where
         IF: FnMut(usize) -> RbrepResult<u8>,
     {
-        let mut res = ExprMatchResponse::default();
+        let offset = res.len();
         let first = read(offset)?;
         match self {
             ExprKind::Byte { value } => {
@@ -123,7 +123,7 @@ impl ExprKind {
                 // apply matcher to next function, but do not use the
                 // callback. Only if the parser returns an error, call callback
                 // for the next value
-                if expr.is_match(offset, read)?.is_empty() {
+                if expr.apply_match(read, &mut res.clone())? == 0 {
                     res.push(ExprOutput::new(first, true));
                 }
             }
@@ -132,9 +132,12 @@ impl ExprKind {
             }
             ExprKind::Group { nodes, and } => {
                 if *and {
-                    res.append(&mut Expr::match_all(nodes, offset, read)?);
+                    let matched = Expr::match_all(nodes, read, res)?;
+                    if matched == 0 {
+                        return Ok(0);
+                    }
                 } else {
-                    res.append(&mut Expr::match_any(nodes, offset, read)?);
+                    Expr::match_any(nodes, read, res)?;
                 }
             }
             ExprKind::String { value } => {
@@ -152,7 +155,7 @@ impl ExprKind {
                 }
             }
         }
-        Ok(res)
+        Ok(res.len() - offset)
     }
 }
 
@@ -168,8 +171,7 @@ impl ExprOutput {
     }
 }
 
-// FIXME change back to a larger buffer when improving performance
-pub type ExprMatchResponse = tinyvec::TinyVec<[ExprOutput; 1]>;
+pub type ExprMatchResponse = Vec<ExprOutput>;
 
 #[derive(Clone)]
 pub struct Expr {
@@ -371,37 +373,42 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn is_match<IF>(&self, offset: usize, i: &mut IF) -> RbrepResult<ExprMatchResponse>
+    pub fn apply_match<IF>(&self, i: &mut IF, res: &mut ExprMatchResponse) -> RbrepResult<usize>
     where
         IF: FnMut(usize) -> RbrepResult<u8>,
     {
-        let mut res = ExprMatchResponse::new();
-        let mut total = 0;
+        let start = res.len();
         for _ in 0..self.mul {
-            let mut result = self.kind.is_match(offset + total, i)?;
-            let amount = if result.is_empty() && self.optional {
-                0
-            } else if result.is_empty() {
-                return Ok(ExprMatchResponse::default());
-            } else {
-                result.len()
-            };
-            res.append(&mut result);
+            let matched = self.kind.apply_match(i, res)?;
 
-            total += amount;
+            if matched == 0 && !self.optional {
+                return Ok(0);
+            }
 
             // call again if many flag is set and we had a result
-            if (amount > 0 || self.optional) && self.many {
+            if (matched != 0 || self.optional) && self.many {
                 loop {
-                    let mut result = self.kind.is_match(offset + total, i)?;
-                    if result.is_empty() {
+                    let matched = self.kind.apply_match(i, res)?;
+
+                    // no change?
+                    if matched == 0 {
                         break;
                     }
-                    total += result.len();
-                    res.append(&mut result);
                 }
             }
         }
+        Ok(res.len() - start)
+    }
+
+    pub fn start_match<IF>(expr: &ExprBranch, i: &mut IF) -> RbrepResult<ExprMatchResponse>
+    where
+        IF: FnMut(usize) -> RbrepResult<u8>,
+    {
+        let mut res = ExprMatchResponse::default();
+        if Self::match_all(expr, i, &mut res)? == 0 {
+            return Ok(ExprMatchResponse::default());
+        }
+
         Ok(res)
     }
 
@@ -411,39 +418,45 @@ impl Expr {
     // i should return None if the read failed
     // and a byte value if the read was ok
     // i can be implemented in any way required to provide data to the matcher
-    fn match_all<IF>(expr: &ExprBranch, offset: usize, i: &mut IF) -> RbrepResult<ExprMatchResponse>
+    fn match_all<IF>(
+        expr: &ExprBranch,
+        i: &mut IF,
+        res: &mut ExprMatchResponse,
+    ) -> RbrepResult<usize>
     where
         IF: FnMut(usize) -> RbrepResult<u8>,
     {
-        let mut total = 0;
-        let mut res = ExprMatchResponse::default();
+        let start = res.len();
         for e in expr {
-            let mut result = e.is_match(offset + total, i)?;
-            total += result.len();
+            let matched = e.apply_match(i, res)?;
             // no match => return empty
-            if result.is_empty() && !e.optional {
-                return Ok(ExprMatchResponse::default());
+            if matched == 0 && !e.optional {
+                return Ok(0);
             }
-            res.append(&mut result);
         }
         // got to end without fail => match found!
-        Ok(res)
+        Ok(res.len() - start)
     }
 
     // match any
     // matches any of the group and if it ends up matching, returns
-    fn match_any<IF>(expr: &ExprBranch, offset: usize, i: &mut IF) -> RbrepResult<ExprMatchResponse>
+    fn match_any<IF>(
+        expr: &ExprBranch,
+        i: &mut IF,
+        res: &mut ExprMatchResponse,
+    ) -> RbrepResult<usize>
     where
         IF: FnMut(usize) -> RbrepResult<u8>,
     {
+        let start = res.len();
         for e in expr {
-            let res = e.is_match(offset, i)?;
-            if !res.is_empty() {
-                return Ok(res);
+            let matched = e.apply_match(i, res)?;
+            if matched != 0 {
+                return Ok(res.len() - start);
             }
         }
         // got to end without success => no match found!
-        Ok(ExprMatchResponse::default())
+        Ok(0)
     }
 
     // here we read the data and manage the buffer
@@ -480,7 +493,7 @@ impl Expr {
 
             // no matter what, we always advance a single byte
             // to check all possible combinations
-            let output = Self::match_all(expr, 0, &mut |offset| {
+            let output = Self::start_match(expr, &mut |offset| {
                 if let Some(val) = buffer.get(offset) {
                     Ok(*val)
                 } else if i.read_exact(&mut next).is_err() {
@@ -597,6 +610,7 @@ mod test {
     #[test]
     fn and_group() {
         validate("stdin\n00000000\t3032\n", "&(3032)", "02134");
+        validate("stdin\n00000000\t303132\n", "30&(3132)", "01201");
     }
 
     #[test]

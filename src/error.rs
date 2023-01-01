@@ -6,9 +6,9 @@ pub type RbrepResult<T> = Result<T, Error>;
 pub enum Error {
     #[error("Syntax error")]
     BadSyntax(usize),
-    #[error("Unknown error")]
+    #[error("EndOfFile")]
     EndOfFile,
-    #[error("Unknown error")]
+    #[error("IO error")]
     Io,
     #[error("Unknown error")]
     Unknown,
