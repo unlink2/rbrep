@@ -27,7 +27,7 @@ pub struct FileBufferInput<'a> {
     buffer: Vec<u8>,
     read: &'a mut dyn Read,
     eof: bool,
-    pub total: usize,
+    pos: usize,
 }
 
 impl<'a> FileBufferInput<'a> {
@@ -36,7 +36,7 @@ impl<'a> FileBufferInput<'a> {
             buffer: vec![],
             read,
             eof: false,
-            total: 0,
+            pos: 0,
         }
     }
 
@@ -82,7 +82,7 @@ impl<'a> MatchInput for FileBufferInput<'a> {
     }
 
     fn advance(&mut self, by: usize) -> RbrepResult<()> {
-        self.total += by;
+        self.pos += by;
         for _ in 0..by {
             self.remove(0);
             self.read_next()?;
@@ -91,7 +91,7 @@ impl<'a> MatchInput for FileBufferInput<'a> {
     }
 
     fn pos(&self) -> usize {
-        self.total
+        self.pos
     }
 
     fn eof(&self) -> bool {
