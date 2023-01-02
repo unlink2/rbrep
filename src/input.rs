@@ -3,14 +3,23 @@ use std::io::Read;
 use crate::{Error, RbrepResult};
 
 pub trait MatchInput {
+    // read a single byte from the input at the required offset
     fn read(&mut self, offset: usize) -> RbrepResult<u8>;
 
     // called to trim a possible buffer by n bytes
     // and re-read if required
+    // should advance pos as well
     fn advance(&mut self, _by: usize) -> RbrepResult<()> {
         Ok(())
     }
 
+    // current read cursor position
+    // should be the start offset
+    // from which a match begins
+    fn pos(&self) -> usize;
+
+    // should return true if
+    // no more bytes can be read
     fn eof(&self) -> bool;
 }
 
@@ -50,7 +59,6 @@ impl<'a> FileBufferInput<'a> {
             }
             Err(_) => Err(Error::Io),
             _ => {
-                self.total += 1;
                 self.buffer.push(next[0]);
                 Ok(1)
             }
@@ -66,7 +74,6 @@ impl<'a> MatchInput for FileBufferInput<'a> {
         } else if self.read.read_exact(&mut next).is_err() {
             // FIXME this may not be correct
             self.eof = true;
-            self.total += 1;
             Err(Error::EndOfFile)
         } else {
             self.buffer.push(next[0]);
@@ -75,11 +82,16 @@ impl<'a> MatchInput for FileBufferInput<'a> {
     }
 
     fn advance(&mut self, by: usize) -> RbrepResult<()> {
+        self.total += by;
         for _ in 0..by {
             self.remove(0);
             self.read_next()?;
         }
         Ok(())
+    }
+
+    fn pos(&self) -> usize {
+        self.total
     }
 
     fn eof(&self) -> bool {

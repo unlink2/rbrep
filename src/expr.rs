@@ -492,6 +492,8 @@ impl Expr {
                         return Ok(false);
                     }
                 }
+                let total = input.pos();
+
                 if !output.is_empty() {
                     if first_in_file {
                         if CFG.pretty {
@@ -506,9 +508,9 @@ impl Expr {
                     // and count is not set
                     if !CFG.count {
                         if CFG.pretty {
-                            write!(o, "{:08x}\t", style(input.total).green())?;
+                            write!(o, "{:08x}\t", style(total).green())?;
                         } else {
-                            write!(o, "{:08x}\t", input.total)?;
+                            write!(o, "{:08x}\t", total)?;
                         }
                         for (i, b) in output.as_slice().iter().enumerate() {
                             if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
