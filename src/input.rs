@@ -5,6 +5,12 @@ use crate::{Error, RbrepResult};
 pub trait MatchInput {
     fn read(&mut self, offset: usize) -> RbrepResult<u8>;
 
+    // called to trim a possible buffer by n bytes
+    // and re-read if required
+    fn trim(&mut self, _by: usize) -> RbrepResult<()> {
+        Ok(())
+    }
+
     fn eof(&self) -> bool;
 }
 
@@ -23,11 +29,13 @@ impl<'a> FileBufferInput<'a> {
         }
     }
 
-    pub fn remove(&mut self, offset: usize) {
-        self.buffer.remove(offset);
+    fn remove(&mut self, offset: usize) {
+        if self.buffer.len() > offset {
+            self.buffer.remove(offset);
+        }
     }
 
-    pub fn read_next(&mut self) -> RbrepResult<usize> {
+    fn read_next(&mut self) -> RbrepResult<usize> {
         let mut next = [0; 1];
         // read a new byte
         let res = self.read.read_exact(&mut next);
@@ -60,6 +68,14 @@ impl<'a> MatchInput for FileBufferInput<'a> {
             self.buffer.push(next[0]);
             Ok(next[0])
         }
+    }
+
+    fn trim(&mut self, by: usize) -> RbrepResult<()> {
+        for _ in 0..by {
+            self.remove(0);
+            self.read_next()?;
+        }
+        Ok(())
     }
 
     fn eof(&self) -> bool {

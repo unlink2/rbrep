@@ -479,15 +479,13 @@ impl Expr {
         let mut first_in_file = true;
         let mut matches = 0;
 
-        // read firt byte
-        input.read_next()?;
-
         // no matter what, we always advance a single byte
         // to check all possible combinations
         Self::for_each_match(
             expr,
             &mut input,
             &mut |_expr, input, output: &ExprOutput| {
+                input.trim(1)?;
                 if let Some(stop_after) = CFG.stop_after {
                     if matches >= stop_after {
                         return Ok(false);
@@ -529,13 +527,6 @@ impl Expr {
                         writeln!(o)?;
                     }
                     matches += 1;
-                }
-
-                // remove 1 byte from buffer
-                input.remove(0);
-                // read next
-                if input.read_next()? == 0 {
-                    return Ok(false);
                 }
 
                 total += 1;
