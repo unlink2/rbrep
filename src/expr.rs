@@ -421,6 +421,8 @@ impl Expr {
             if !each(expr, reader, &res)? {
                 break;
             }
+
+            // FIXME are there cases where advnacing by res.len() is not ok?
             reader.advance(1)?;
         }
         Ok(())
@@ -476,7 +478,6 @@ impl Expr {
     ) -> anyhow::Result<()> {
         let mut input = FileBufferInput::new(i);
 
-        let mut total = 0;
         let mut first_in_file = true;
         let mut matches = 0;
 
@@ -485,7 +486,7 @@ impl Expr {
         Self::for_each_match(
             expr,
             &mut input,
-            &mut |_expr, _input, output: &ExprOutput| {
+            &mut |_expr, input, output: &ExprOutput| {
                 if let Some(stop_after) = CFG.stop_after {
                     if matches >= stop_after {
                         return Ok(false);
@@ -505,9 +506,9 @@ impl Expr {
                     // and count is not set
                     if !CFG.count {
                         if CFG.pretty {
-                            write!(o, "{:08x}\t", style(total).green())?;
+                            write!(o, "{:08x}\t", style(input.total).green())?;
                         } else {
-                            write!(o, "{total:08x}\t")?;
+                            write!(o, "{:08x}\t", input.total)?;
                         }
                         for (i, b) in output.as_slice().iter().enumerate() {
                             if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
@@ -528,8 +529,6 @@ impl Expr {
                     }
                     matches += 1;
                 }
-
-                total += 1;
 
                 Ok(true)
             },

@@ -18,6 +18,7 @@ pub struct FileBufferInput<'a> {
     buffer: Vec<u8>,
     read: &'a mut dyn Read,
     eof: bool,
+    pub total: usize,
 }
 
 impl<'a> FileBufferInput<'a> {
@@ -26,6 +27,7 @@ impl<'a> FileBufferInput<'a> {
             buffer: vec![],
             read,
             eof: false,
+            total: 0,
         }
     }
 
@@ -48,6 +50,7 @@ impl<'a> FileBufferInput<'a> {
             }
             Err(_) => Err(Error::Io),
             _ => {
+                self.total += 1;
                 self.buffer.push(next[0]);
                 Ok(1)
             }
@@ -63,6 +66,7 @@ impl<'a> MatchInput for FileBufferInput<'a> {
         } else if self.read.read_exact(&mut next).is_err() {
             // FIXME this may not be correct
             self.eof = true;
+            self.total += 1;
             Err(Error::EndOfFile)
         } else {
             self.buffer.push(next[0]);
