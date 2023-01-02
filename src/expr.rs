@@ -421,6 +421,7 @@ impl Expr {
             if !each(expr, reader, &res)? {
                 break;
             }
+            reader.advance(1)?;
         }
         Ok(())
     }
@@ -484,8 +485,7 @@ impl Expr {
         Self::for_each_match(
             expr,
             &mut input,
-            &mut |_expr, input, output: &ExprOutput| {
-                input.trim(1)?;
+            &mut |_expr, _input, output: &ExprOutput| {
                 if let Some(stop_after) = CFG.stop_after {
                     if matches >= stop_after {
                         return Ok(false);

@@ -7,7 +7,7 @@ pub trait MatchInput {
 
     // called to trim a possible buffer by n bytes
     // and re-read if required
-    fn trim(&mut self, _by: usize) -> RbrepResult<()> {
+    fn advance(&mut self, _by: usize) -> RbrepResult<()> {
         Ok(())
     }
 
@@ -70,7 +70,7 @@ impl<'a> MatchInput for FileBufferInput<'a> {
         }
     }
 
-    fn trim(&mut self, by: usize) -> RbrepResult<()> {
+    fn advance(&mut self, by: usize) -> RbrepResult<()> {
         for _ in 0..by {
             self.remove(0);
             self.read_next()?;
