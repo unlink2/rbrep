@@ -414,11 +414,11 @@ impl Expr {
     where
         IF: MatchInput,
         OF: MatchOutput,
-        CB: FnMut(&mut IF, &OF) -> anyhow::Result<bool>,
+        CB: FnMut(&ExprBranch, &mut IF, &OF) -> anyhow::Result<bool>,
     {
         while !reader.eof() {
             let res: OF = Self::start_match(expr, reader)?;
-            if !each(reader, &res)? {
+            if !each(expr, reader, &res)? {
                 break;
             }
         }
@@ -484,61 +484,65 @@ impl Expr {
 
         // no matter what, we always advance a single byte
         // to check all possible combinations
-        Self::for_each_match(expr, &mut input, &mut |input, output: &ExprOutput| {
-            if let Some(stop_after) = CFG.stop_after {
-                if matches >= stop_after {
+        Self::for_each_match(
+            expr,
+            &mut input,
+            &mut |_expr, input, output: &ExprOutput| {
+                if let Some(stop_after) = CFG.stop_after {
+                    if matches >= stop_after {
+                        return Ok(false);
+                    }
+                }
+                if !output.is_empty() {
+                    if first_in_file {
+                        if CFG.pretty {
+                            writeln!(o, "{}", style(name).magenta())?;
+                        } else {
+                            writeln!(o, "{name}")?;
+                        }
+                        first_in_file = false;
+                    }
+
+                    // print current buffer if match
+                    // and count is not set
+                    if !CFG.count {
+                        if CFG.pretty {
+                            write!(o, "{:08x}\t", style(total).green())?;
+                        } else {
+                            write!(o, "{total:08x}\t")?;
+                        }
+                        for (i, b) in output.as_slice().iter().enumerate() {
+                            if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
+                                write!(o, " ")?;
+                            }
+
+                            if CFG.pretty {
+                                if !b.highlight {
+                                    write!(o, "{:02x}", style(b.value))?;
+                                } else {
+                                    write!(o, "{:02x}", style(b.value).red())?;
+                                }
+                            } else {
+                                write!(o, "{:02x}", b.value)?;
+                            }
+                        }
+                        writeln!(o)?;
+                    }
+                    matches += 1;
+                }
+
+                // remove 1 byte from buffer
+                input.remove(0);
+                // read next
+                if input.read_next()? == 0 {
                     return Ok(false);
                 }
-            }
-            if !output.is_empty() {
-                if first_in_file {
-                    if CFG.pretty {
-                        writeln!(o, "{}", style(name).magenta())?;
-                    } else {
-                        writeln!(o, "{name}")?;
-                    }
-                    first_in_file = false;
-                }
 
-                // print current buffer if match
-                // and count is not set
-                if !CFG.count {
-                    if CFG.pretty {
-                        write!(o, "{:08x}\t", style(total).green())?;
-                    } else {
-                        write!(o, "{total:08x}\t")?;
-                    }
-                    for (i, b) in output.as_slice().iter().enumerate() {
-                        if CFG.space != 0 && i != 0 && i as u32 % CFG.space == 0 {
-                            write!(o, " ")?;
-                        }
+                total += 1;
 
-                        if CFG.pretty {
-                            if !b.highlight {
-                                write!(o, "{:02x}", style(b.value))?;
-                            } else {
-                                write!(o, "{:02x}", style(b.value).red())?;
-                            }
-                        } else {
-                            write!(o, "{:02x}", b.value)?;
-                        }
-                    }
-                    writeln!(o)?;
-                }
-                matches += 1;
-            }
-
-            // remove 1 byte from buffer
-            input.remove(0);
-            // read next
-            if input.read_next()? == 0 {
-                return Ok(false);
-            }
-
-            total += 1;
-
-            Ok(true)
-        })?;
+                Ok(true)
+            },
+        )?;
 
         if CFG.count {
             writeln!(o, "{matches}")?;
