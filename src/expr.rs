@@ -105,7 +105,7 @@ impl ExprKind {
     }
 
     // An empty vec means no match was found (same as None right now)
-    pub fn apply_match<IF, OF>(&self, read: &mut IF, res: &mut OF) -> RbrepResult<usize>
+    fn apply_match<IF, OF>(&self, read: &mut IF, res: &mut OF) -> RbrepResult<usize>
     where
         IF: MatchInput,
         OF: MatchOutput,
@@ -165,14 +165,14 @@ impl ExprKind {
 
 #[derive(Clone)]
 pub struct Expr {
-    pub kind: ExprKind,
-    pub mul: u32,
+    kind: ExprKind,
+    mul: u32,
 
     // match until no more matches are found
-    pub many: bool,
+    many: bool,
 
     // this will not cause a failure, even if it does not match
-    pub optional: bool,
+    optional: bool,
 }
 
 impl Display for Expr {
@@ -208,10 +208,12 @@ impl Expr {
         1
     }
 
-    // calculates how many bytes this expression tree may match
-    pub fn len(tree: &ExprBranch) -> usize {
-        tree.iter()
-            .fold(0, |i, n| i + n.kind.len() * n.mul as usize)
+    pub fn len(&self) -> usize {
+        self.kind.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     fn parse_byte_value(parser: &mut Parser) -> RbrepResult<u8> {
@@ -363,7 +365,7 @@ impl Expr {
         Self::parse_mul(parser, expr)
     }
 
-    pub fn apply_match<IF, OF>(&self, i: &mut IF, res: &mut OF) -> RbrepResult<usize>
+    fn apply_match<IF, OF>(&self, i: &mut IF, res: &mut OF) -> RbrepResult<usize>
     where
         IF: MatchInput,
         OF: MatchOutput,
@@ -402,6 +404,25 @@ impl Expr {
         }
 
         Ok(res)
+    }
+
+    pub fn for_each_match<IF, OF, CB>(
+        expr: &ExprBranch,
+        reader: &mut IF,
+        each: &mut CB,
+    ) -> anyhow::Result<()>
+    where
+        IF: MatchInput,
+        OF: MatchOutput,
+        CB: FnMut(&mut IF, &OF) -> anyhow::Result<bool>,
+    {
+        while !reader.eof() {
+            let res: OF = Self::start_match(expr, reader)?;
+            if !each(reader, &res)? {
+                break;
+            }
+        }
+        Ok(())
     }
 
     // match all
@@ -461,17 +482,14 @@ impl Expr {
         // read firt byte
         input.read_next()?;
 
-        loop {
+        // no matter what, we always advance a single byte
+        // to check all possible combinations
+        Self::for_each_match(expr, &mut input, &mut |input, output: &ExprOutput| {
             if let Some(stop_after) = CFG.stop_after {
                 if matches >= stop_after {
-                    break;
+                    return Ok(false);
                 }
             }
-
-            // no matter what, we always advance a single byte
-            // to check all possible combinations
-            let output: ExprOutput = Self::start_match(expr, &mut input)?;
-
             if !output.is_empty() {
                 if first_in_file {
                     if CFG.pretty {
@@ -514,11 +532,13 @@ impl Expr {
             input.remove(0);
             // read next
             if input.read_next()? == 0 {
-                break;
+                return Ok(false);
             }
 
             total += 1;
-        }
+
+            Ok(true)
+        })?;
 
         if CFG.count {
             writeln!(o, "{matches}")?;
