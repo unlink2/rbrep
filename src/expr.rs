@@ -394,7 +394,7 @@ impl Expr {
         Ok(res.len() - start)
     }
 
-    pub fn start_match<IF, OF>(expr: &ExprBranch, i: &mut IF) -> RbrepResult<OF>
+    pub fn start_match_from<IF, OF>(expr: &ExprBranch, i: &mut IF) -> RbrepResult<OF>
     where
         IF: MatchInput,
         OF: MatchOutput,
@@ -405,6 +405,15 @@ impl Expr {
         }
 
         Ok(res)
+    }
+
+    pub fn start_match<IF, OF>(expr: &str, reader: &mut IF) -> RbrepResult<OF>
+    where
+        IF: MatchInput,
+        OF: MatchOutput,
+    {
+        let expr = Expr::tree_from(expr)?;
+        Self::start_match_from(&expr, reader)
     }
 
     pub fn for_each_match<IF, OF, CB>(
@@ -420,7 +429,7 @@ impl Expr {
         // the tree to apply
         let expr = Expr::tree_from(expr)?;
         while !reader.eof() {
-            let res: OF = Self::start_match(&expr, reader)?;
+            let res: OF = Self::start_match_from(&expr, reader)?;
             if !each(&expr, reader, &res)? {
                 break;
             }
