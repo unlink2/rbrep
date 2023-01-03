@@ -14,10 +14,11 @@ use crate::{
 pub type ExprBranch = Vec<Expr>;
 
 pub fn exec() -> anyhow::Result<()> {
-    // the tree to apply
-    let expr = Expr::tree_from(&CFG.expr)?;
+    let expr = CFG.expr.clone();
 
     if CFG.dbg_expr_tree {
+        // the tree to apply
+        let expr = Expr::tree_from(&CFG.expr)?;
         expr.iter().for_each(|x| println!("{x}"));
     }
 
@@ -407,7 +408,7 @@ impl Expr {
     }
 
     pub fn for_each_match<IF, OF, CB>(
-        expr: &ExprBranch,
+        expr: &str,
         reader: &mut IF,
         each: &mut CB,
     ) -> anyhow::Result<()>
@@ -416,9 +417,11 @@ impl Expr {
         OF: MatchOutput,
         CB: FnMut(&ExprBranch, &mut IF, &OF) -> anyhow::Result<bool>,
     {
+        // the tree to apply
+        let expr = Expr::tree_from(expr)?;
         while !reader.eof() {
-            let res: OF = Self::start_match(expr, reader)?;
-            if !each(expr, reader, &res)? {
+            let res: OF = Self::start_match(&expr, reader)?;
+            if !each(&expr, reader, &res)? {
                 break;
             }
 
@@ -471,7 +474,7 @@ impl Expr {
 
     // here we read the data and manage the buffer
     pub fn apply(
-        expr: &ExprBranch,
+        expr: &str,
         i: &mut dyn Read,
         o: &mut dyn Write,
         name: &str,
@@ -551,8 +554,7 @@ mod test {
     fn validate(expected: &str, expr: &str, input: &str) {
         let input: Vec<u8> = input.bytes().collect();
         let mut output = Vec::new();
-        let expr = Expr::tree_from(&expr).unwrap();
-        Expr::apply(&expr, &mut input.as_slice(), &mut output, "stdin").unwrap();
+        Expr::apply(expr, &mut input.as_slice(), &mut output, "stdin").unwrap();
 
         let output = String::from_utf8(output).unwrap();
         assert_eq!(expected, &output);
