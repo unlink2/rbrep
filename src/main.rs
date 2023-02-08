@@ -1,6 +1,9 @@
-use rbrep::{config::generate_completion, exec, CFG};
+#[cfg(not(any(feature = "cli")))]
+fn main() {}
 
+#[cfg(feature = "cli")]
 fn main() {
+    use rbrep::{core::config::generate_completion, prelude::exec, prelude::CFG};
     if let Some(shell) = CFG.completions {
         generate_completion(shell);
         std::process::exit(0);

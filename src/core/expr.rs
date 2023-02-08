@@ -5,10 +5,13 @@ use std::{
     io::{BufReader, Read, Write},
 };
 
-use crate::{
+use crate::core::{
+    config::CFG,
+    error::Error,
+    error::RbrepResult,
     input::{FileBufferInput, MatchInput},
     output::{ExprOutData, ExprOutput, MatchOutput},
-    Error, Parser, RbrepResult, CFG,
+    parser::Parser,
 };
 
 pub type ExprBranch = Vec<Expr>;

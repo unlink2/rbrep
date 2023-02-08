@@ -47,6 +47,3 @@ This program is distributed under the terms of the MIT License.
 
 ## Contributing
 
-All contributions are welcome.
-Both pull requests and issue reports are always appreciated.
-Please make sure that all existing tests pass before submitting a pull request.

@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::{Error, RbrepResult};
+use crate::core::error::{Error, RbrepResult};
 
 pub trait MatchInput {
     // read a single byte from the input at the required offset
